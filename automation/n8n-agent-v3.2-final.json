@@ -1,0 +1,3520 @@
+{
+  "name": "ARLES DELIVERY AGENT V3.2 FINAL",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "arles-delivery",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        480
+      ],
+      "id": "ca949664-4460-43d3-ae6a-ebcf1378b811",
+      "name": "Webhook Arles",
+      "webhookId": "8017ee44-193f-44af-bbb6-692c5344bb23"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst data = body.data ?? {};\nconst key = data.key ?? {};\nconst message = data.message ?? {};\n\nconst event = String(body.event ?? '').toUpperCase().replace(/[.\\-]/g, '_');\nconst rawJid = String(body.phone ?? key.remoteJid ?? '');\nconst altJid = String(\n  key.remoteJidAlt ??\n  key.participantAlt ??\n  data.senderPn ??\n  data.remoteJidAlt ??\n  ''\n);\n\nlet replyJid = rawJid;\nif (rawJid.includes('@lid') && altJid) replyJid = altJid;\nif (replyJid && !replyJid.includes('@') && /^\\+?\\d+$/.test(replyJid)) {\n  replyJid = replyJid.replace(/\\D/g, '') + '@s.whatsapp.net';\n}\n\nconst phoneNumber = (replyJid || rawJid).replace(/\\D/g, '');\nconst fromMe = body.from_me === true || key.fromMe === true;\n\nlet messageType = 'unsupported';\nlet text = String(\n  body.message ??\n  message.conversation ??\n  message.extendedTextMessage?.text ??\n  message.imageMessage?.caption ??\n  message.videoMessage?.caption ??\n  ''\n).trim();\n\nif (message.conversation || message.extendedTextMessage?.text || (text && !message.imageMessage && !message.audioMessage)) {\n  messageType = 'text';\n}\nif (message.imageMessage) messageType = 'image';\nif (message.audioMessage) messageType = 'audio';\n\nconst isGroup = rawJid.endsWith('@g.us');\nconst isBroadcast = rawJid.includes('@broadcast') || rawJid.includes('status@broadcast');\nconst validChat = !!body.company_id && !!body.instance_name && !!rawJid && !isGroup && !isBroadcast;\nconst isMessageEvent = event === 'MESSAGES_UPSERT' || event === 'MESSAGE_UPSERT';\nconst accessActive = body.access_active !== false &&\n  ['trial','active'].includes(String(body.subscription_status ?? '').toLowerCase());\n\nreturn [{\n  json: {\n    company_id: String(body.company_id ?? ''),\n    company_name: String(body.company_name ?? ''),\n    subscription_status: String(body.subscription_status ?? ''),\n    access_active: accessActive,\n    instance_name: String(body.instance_name ?? ''),\n    event,\n    message_id: String(body.message_id ?? key.id ?? ''),\n    raw_jid: rawJid,\n    reply_jid: replyJid,\n    phone_number: phoneNumber,\n    push_name: String(data.pushName ?? ''),\n    from_me: fromMe,\n    message_type: messageType,\n    message_text: text,\n    is_message_event: isMessageEvent,\n    valid_chat: validChat,\n    received_at: String(body.received_at ?? new Date().toISOString()),\n    raw_data: data\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        480
+      ],
+      "id": "608ab91a-d943-41d4-ae88-a949f51f7592",
+      "name": "Normalizar Evento"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "aab1019c-6b52-445f-bb09-b63fe2e154c1",
+              "leftValue": "={{ $json.is_message_event && $json.valid_chat && $json.access_active }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        480
+      ],
+      "id": "0b7bc947-68e6-42c3-817e-68cb760933c1",
+      "name": "Mensagem válida?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        720,
+        704
+      ],
+      "id": "53eb4769-602d-40e7-a0c6-94ace022b172",
+      "name": "Ignorar Evento"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "37b03eb3-0a4e-4b55-bbba-82ed0169a0a2",
+              "leftValue": "={{ $json.from_me }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        720,
+        400
+      ],
+      "id": "f6dd9833-c0de-4fac-896a-e90e152b777a",
+      "name": "Mensagem enviada pela loja?"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "ai_sending",
+        "key": "=arles:ai_sending:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        976,
+        272
+      ],
+      "id": "9e5b2d1c-348d-42b6-99de-0f784fa9a516",
+      "name": "Verificar marcador IA",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dd6ab448-0622-4ee3-b659-abeabe427553",
+              "leftValue": "={{ String($json.ai_sending ?? '') === 'true' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1200,
+        272
+      ],
+      "id": "3578c832-ed81-47c7-bde9-d7dcdec2d707",
+      "name": "Foi enviada pela IA?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        160
+      ],
+      "id": "4b0d0e82-0a29-499a-954d-6e22871f3936",
+      "name": "Ignorar Saída da IA"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:paused:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 3600
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        320
+      ],
+      "id": "5f7fdf18-0c46-4568-a761-7eed369b6924",
+      "name": "Pausar por atendimento humano",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1712,
+        320
+      ],
+      "id": "aa466a0f-5e49-46c1-8f05-8f790e9ba2d1",
+      "name": "Fim atendimento humano"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "processed",
+        "key": "=arles:processed:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.message_id }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        976,
+        528
+      ],
+      "id": "c858e1a8-88c8-4138-b8f0-5f3e2bc44bb6",
+      "name": "Verificar duplicidade",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c16fb25e-45f4-49bf-a9b3-e194cf4d7fe0",
+              "leftValue": "={{ String($json.processed ?? '') === 'true' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1200,
+        528
+      ],
+      "id": "3bc6b4a3-5dde-4e0c-a7e0-ddd87557d67b",
+      "name": "Mensagem duplicada?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        464
+      ],
+      "id": "975ad7eb-946b-4ada-8568-d63006bd5ebc",
+      "name": "Ignorar Duplicada"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:processed:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.message_id }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        592
+      ],
+      "id": "531699ab-1ea0-4c66-9bc2-5cbbf912e6de",
+      "name": "Marcar como processada",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "paused",
+        "key": "=arles:paused:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1712,
+        592
+      ],
+      "id": "22fd0738-6d58-4c20-9cfd-7e07d3973199",
+      "name": "Verificar pausa",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ce331e45-0afd-45f3-b24c-d714fcdba7a4",
+              "leftValue": "={{ String($json.paused ?? '') === 'true' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1952,
+        592
+      ],
+      "id": "11ec74b6-4bb7-48fa-9a4c-68ae5745e021",
+      "name": "IA pausada?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2192,
+        480
+      ],
+      "id": "48447739-a827-42c4-ad67-dc511f4194b2",
+      "name": "Fim IA pausada"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Normalizar Evento').first().json.message_type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5331aef4-0b5a-41aa-85cd-b89bcf0808e5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Texto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "58d75c30-0f33-4762-957a-e187d543997b",
+                    "leftValue": "={{ $('Normalizar Evento').first().json.message_type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Imagem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fe3db55b-eb3b-4813-8cd0-b68d9608cb73",
+                    "leftValue": "={{ $('Normalizar Evento').first().json.message_type }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Áudio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2192,
+        672
+      ],
+      "id": "7bb1e29b-8c06-4152-aeef-991d28d20434",
+      "name": "Tipo da mensagem"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2432,
+        912
+      ],
+      "id": "b4f6dad5-df3c-4ac1-92ab-e72be5839bf1",
+      "name": "Tipo não suportado"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0af43d67-0522-4d00-9c0d-b14fa85775d2",
+              "name": "message_text",
+              "value": "={{ $('Normalizar Evento').first().json.message_text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2464,
+        560
+      ],
+      "id": "ae53c152-328b-4faf-a298-19203bd37d4e",
+      "name": "Mensagem Texto"
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "messageId": "={{ $('Normalizar Evento').first().json.message_id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        688
+      ],
+      "id": "6a11caa3-536e-4e78-a946-d1aa5b843f21",
+      "name": "Baixar Imagem",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2688,
+        688
+      ],
+      "id": "fe5986e9-1d8a-44bb-8beb-557cd75da7ac",
+      "name": "Imagem para arquivo"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "Analise a imagem enviada por um cliente de delivery. Na PRIMEIRA linha responda exatamente `PIX_COMPROVANTE: SIM` se a imagem parecer um comprovante/recibo de pagamento Pix, transferência bancária ou tela de pagamento concluído; caso contrário responda exatamente `PIX_COMPROVANTE: NAO`. Na segunda linha escreva `DESCRICAO:` e descreva objetivamente o que está visível, incluindo textos relevantes. Não afirme que o pagamento foi aprovado; apenas classifique se parece ou não um comprovante.",
+        "inputType": "base64",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        2912,
+        688
+      ],
+      "id": "b56e2410-7756-4ca1-8ef7-3e634368772f",
+      "name": "Analisar Imagem",
+      "credentials": {
+        "openAiApi": {
+          "id": "huogA3oq2RLQqx1j",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\n\nlet text = '';\nif (typeof j.text === 'string') text = j.text;\nelse if (Array.isArray(j) && j[0]?.content?.[0]?.text) text = j[0].content[0].text;\nelse if (j?.[0]?.content?.[0]?.text) text = j[0].content[0].text;\nelse if (j?.content?.[0]?.text) text = j.content[0].text;\n\ntext = String(text || '').trim();\n\nconst looksLikePixProof =\n  /PIX_COMPROVANTE\\s*:\\s*SIM/i.test(text);\n\nlet description = text\n  .replace(/PIX_COMPROVANTE\\s*:\\s*(SIM|NAO|NÃO)/ig, '')\n  .replace(/^\\s*DESCRICAO\\s*:\\s*/im, '')\n  .trim();\n\nif (!description) {\n  description = 'Imagem enviada pelo cliente.';\n}\n\nreturn [{\n  json: {\n    message_text: `[Imagem enviada pelo cliente]\\n${description}`,\n    image_analysis: description,\n    looks_like_pix_proof: looksLikePixProof\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3152,
+        688
+      ],
+      "id": "f9b1bc51-7dcd-4ec6-9405-7b20bfe87ca3",
+      "name": "Normalizar Imagem"
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "messageId": "={{ $('Normalizar Evento').first().json.message_id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        800
+      ],
+      "id": "3656da74-2745-44ef-9b47-0894713b0bf7",
+      "name": "Baixar Áudio",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2688,
+        800
+      ],
+      "id": "22d440db-4595-40d9-9081-abdbe77bc4b2",
+      "name": "Áudio para arquivo"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of items) {\n  if (item.binary?.data) {\n    item.binary.data.fileName = 'audio.ogg';\n    item.binary.data.mimeType = 'audio/ogg';\n  }\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        800
+      ],
+      "id": "1a59f5d8-d297-48bf-8086-ea494b4c398f",
+      "name": "Ajustar Áudio"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        3152,
+        800
+      ],
+      "id": "7ea58588-0679-4afb-90e1-700f4595c998",
+      "name": "Transcrever Áudio",
+      "credentials": {
+        "openAiApi": {
+          "id": "huogA3oq2RLQqx1j",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = String($json.text ?? $json.transcription ?? '').trim();\nreturn [{json:{message_text:`[Áudio transcrito]\\n${text}`}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3376,
+        800
+      ],
+      "id": "1e3855ae-5653-452e-ac29-e4a49f573cf1",
+      "name": "Normalizar Áudio"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "=arles:buffer:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "messageData": "={{ JSON.stringify({ id: $('Normalizar Evento').first().json.message_id, text: $json.message_text }) }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3616,
+        672
+      ],
+      "id": "5c6ed0f8-70a8-42bc-b3f5-0a82d0437777",
+      "name": "Buffer - adicionar",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3840,
+        672
+      ],
+      "id": "a99dfbbb-6b88-48bb-a079-73636ebb3308",
+      "name": "Aguardar agrupamento",
+      "webhookId": "24529cf8-3761-4279-89a9-4e5e9681d12e"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "buffer",
+        "key": "=arles:buffer:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "keyType": "list",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        4080,
+        672
+      ],
+      "id": "fb007ffc-c0c2-4727-913e-8468b97a6021",
+      "name": "Buffer - ler",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let raw = $json.buffer;\nlet list = [];\n\nif (Array.isArray(raw)) list = raw;\nelse if (typeof raw === 'string') {\n  try {\n    const parsed = JSON.parse(raw);\n    list = Array.isArray(parsed) ? parsed : [raw];\n  } catch {\n    list = [raw];\n  }\n}\n\nconst parsed = list.map(v => {\n  if (typeof v === 'object' && v) return v;\n  try { return JSON.parse(String(v)); }\n  catch { return {id:'', text:String(v ?? '')}; }\n}).filter(v => String(v.text ?? '').trim());\n\nconst currentId = String($('Normalizar Evento').first().json.message_id ?? '');\nif (!parsed.length) return [];\n\nconst last = parsed[parsed.length - 1];\nif (String(last.id ?? '') !== currentId) return [];\n\nconst combined = parsed.map(v => String(v.text ?? '').trim()).filter(Boolean).join('\\n');\nreturn [{json:{message_text:combined, buffered_count:parsed.length}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4304,
+        672
+      ],
+      "id": "a657c158-d8ae-4217-afb9-88225640e868",
+      "name": "Consolidar Buffer"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=arles:buffer:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        4544,
+        672
+      ],
+      "id": "4de40b32-8858-4d6c-8fb7-55ee86af3e36",
+      "name": "Buffer - limpar",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Mensagem do cliente: {{ $('Consolidar Buffer').first().json.message_text }}",
+        "options": {
+          "systemMessage": "=Você é a atendente virtual da empresa {{ $('Normalizar Evento').first().json.company_name }} no WhatsApp.\n\nCONTEXTO\ncompany_id={{ $('Normalizar Evento').first().json.company_id }}\ntelefone={{ $('Normalizar Evento').first().json.phone_number }}\nagora={{ $now.setZone('America/Sao_Paulo').toISO() }}\n\nCLIENTE JÁ CADASTRADO\n{{ JSON.stringify($('Buscar Cliente Atual').first().json || {}) }}\n\nDADOS DA LOJA\n{{ JSON.stringify($('Buscar Loja Atual').first().json || {}) }}\n\nCATÁLOGO ATIVO — ÚNICA FONTE DE VERDADE PARA PRODUTOS E PREÇOS\n{{ JSON.stringify($('Montar Catálogo Real').first().json.catalog_for_ai || []) }}\n\nRASCUNHO ATUAL\n{{ $('Ler Rascunho do Pedido').first().json.order_draft || 'null' }}\n\n\nPEDIDO RECENTE JÁ CONFIRMADO\n{{ $('Ler Pedido Confirmado Recente').first().json.recent_confirmed_order || 'null' }}\n\nREGRA DE PÓS-PEDIDO\n- Se PEDIDO RECENTE JÁ CONFIRMADO não for null e RASCUNHO ATUAL for null, NÃO reconstrua nem reabra o pedido anterior pela memória da conversa.\n- Mensagens como \"obrigado\", \"enviei\", \"ok\", \"beleza\", fotos, dúvidas ou observações após a confirmação NÃO são uma nova confirmação do pedido anterior.\n- Só inicie um NOVO pedido se a mensagem atual mencionar claramente um produto real do CATÁLOGO ATIVO.\n\nOBJETIVO\nAtender como uma boa atendente de delivery: humana, simpática, curta e natural. O workflow controla o estado do pedido e fará o INSERT no Supabase; você ajuda a interpretar a mensagem e preencher o objeto pedido.\n\nREGRAS ABSOLUTAS\n- NUNCA invente produto, bebida, adicional, preço, taxa, promoção, prazo ou forma de pagamento.\n- Um produto só existe se estiver no CATÁLOGO ATIVO acima.\n- Use exatamente product_id, nome e preço do catálogo.\n- Produto inexistente: diga que não está disponível; jamais substitua por algo inventado.\n- Nunca exponha URLs de imagens, IDs internos, tabelas ou ferramentas.\n- Nunca diga que o pedido foi registrado, enviado à cozinha ou confirmado de verdade. A confirmação real só é enviada pelo workflow depois do INSERT no Supabase.\n- Nunca escreva PROCESSANDO_PEDIDO, __CRIAR_PEDIDO__ ou qualquer marcador técnico ao cliente.\n\nCARDÁPIO\n- Em saudação simples ou pedido de cardápio/menu, consulte Consultar Cardápio Visual.\n- Se houver cardápio visual ativo: enviar_cardapio=true e resposta curta, por exemplo \"Oi! 😊 Aqui está nosso cardápio:\".\n- Se o cliente já pediu um produto específico, vá direto ao produto.\n\nPEDIDO\n- Se já existe RASCUNHO ATUAL, preserve tudo que já estiver preenchido.\n- Ao reconhecer produto real, pedido deixa de ser null e deve ser devolvido em TODAS as respostas seguintes.\n- Nunca apague dados já informados.\n- Faça apenas UMA pergunta por mensagem.\n- Ordem desejada: produto/quantidade → nome → entrega/retirada → endereço se entrega → pagamento → troco se dinheiro → resumo → confirmação.\n- Se o cadastro já tiver nome real diferente de \"Cliente\", use esse nome.\n- Se faltar nome, pergunte \"Como posso te chamar? 😊\".\n- Para entrega, use a taxa real da loja; para retirada, taxa 0.\n- Pagamento: ofereça somente formas cadastradas.\n- Dinheiro: troco é uma pergunta separada.\n- Antes do resumo, use preços atuais do catálogo.\n- Ao receber uma confirmação clara como \"sim\", \"confirmo\", \"pode confirmar\", devolva pedido_confirmado=true SOMENTE se o objeto pedido estiver completo. O workflow ainda fará a validação final.\n\nTOM\n- Português brasileiro.\n- Natural e próximo; sem parecer formulário.\n- Mensagens curtas.\n- No máximo 1 emoji por mensagem.\n- Varie \"Perfeito\", \"Boa\", \"Fechado\", \"Show\"; não comece tudo igual.\n- Não junte duas perguntas.\n\nTRANSBORDO\nUse transbordo=true para reclamação, cancelamento, atraso, cliente irritado, alteração de pedido já confirmado, falha essencial ou pedido fora das regras.\n\nSAÍDA\nRetorne SOMENTE JSON válido:\n{\n  \"resposta\":\"mensagem ao cliente\",\n  \"status_lead\":\"em_atendimento|aguardando_dados|aguardando_confirmacao|fora_horario|pedido_confirmado|transbordo\",\n  \"enviar_cardapio\":false,\n  \"followup_eligible\":false,\n  \"transbordo\":false,\n  \"motivo_transbordo\":\"\",\n  \"pedido_confirmado\":false,\n  \"pedido\":null\n}\n\nQuando houver pedido em andamento:\n{\n  \"client_name\":\"\",\n  \"items\":[\n    {\n      \"product_id\":\"uuid real\",\n      \"name\":\"nome real\",\n      \"quantity\":1,\n      \"variation\":\"\",\n      \"unit_price\":0,\n      \"notes\":\"\"\n    }\n  ],\n  \"observations\":\"\",\n  \"delivery_type\":\"\",\n  \"delivery_address\":\"\",\n  \"payment_method\":\"\",\n  \"change_for\":null,\n  \"delivery_fee\":null\n}\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        6120,
+        608
+      ],
+      "id": "10671c98-aac5-4c64-8a03-50343286e82f",
+      "name": "Agente Arles Delivery"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        4672,
+        944
+      ],
+      "id": "2bee1f5c-9164-4b25-873b-983c41f36a69",
+      "name": "GPT-4o-mini",
+      "credentials": {
+        "openAiApi": {
+          "id": "huogA3oq2RLQqx1j",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normalizar Evento').first().json.company_id + ':' + $('Normalizar Evento').first().json.phone_number + ':v30' }}",
+        "contextWindowLength": 30
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.4,
+      "position": [
+        4864,
+        944
+      ],
+      "id": "3a2db1d3-40fd-4e05-b225-67a28a17ab9e",
+      "name": "Memória por Empresa + Telefone",
+      "credentials": {
+        "postgres": {
+          "id": "yVTYPEKN3hzlcPTu",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "delivery_store_info",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5088,
+        944
+      ],
+      "id": "fb985d19-ffd5-4831-9321-fc785f77eda2",
+      "name": "Consultar Loja",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "company_settings",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5280,
+        944
+      ],
+      "id": "c66b202e-b7cd-4602-a60c-9e1023999fe2",
+      "name": "Consultar Configurações",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "delivery_products",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "keyName": "is_active",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5488,
+        944
+      ],
+      "id": "8b950997-4521-482f-adf0-c012bd15db2f",
+      "name": "Consultar Produtos",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "product_variations",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "product_id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('product_id', `UUID do produto retornado pela ferramenta Consultar Produtos`, 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5680,
+        944
+      ],
+      "id": "52d49c84-54a6-42da-9fb7-4cf4414f3efc",
+      "name": "Consultar Variações",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "menu_assets",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "keyName": "is_active",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5888,
+        944
+      ],
+      "id": "424b0846-09af-4314-8543-e3a65fd2b967",
+      "name": "Consultar Cardápio Visual",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        6080,
+        944
+      ],
+      "id": "e84f0613-e1ce-4ef8-a18f-d1d7c37fbdcc",
+      "name": "Calculadora"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $json.output ?? $json;\n\nfunction clean(v) {\n  return String(v ?? '')\n    .trim()\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/\\s*```$/, '')\n    .trim();\n}\n\nfunction bool(v) {\n  return v === true || v === 1 || String(v ?? '').trim().toLowerCase() === 'true';\n}\n\nfunction norm(v) {\n  return String(v ?? '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .trim()\n    .toLowerCase();\n}\n\nfunction money(v) {\n  if (v === null || v === undefined || v === '') return null;\n  if (typeof v === 'number') return Number.isFinite(v) ? v : null;\n\n  let s = String(v).trim().replace(/\\s/g, '').replace(/^R\\$/i, '');\n\n  if (s.includes(',') && s.includes('.')) {\n    s = s.replace(/\\./g, '').replace(',', '.');\n  } else if (s.includes(',')) {\n    s = s.replace(',', '.');\n  }\n\n  s = s.replace(/[^\\d.-]/g, '');\n  const n = Number(s);\n  return Number.isFinite(n) ? n : null;\n}\n\nfunction brl(v) {\n  return `R$ ${Number(v || 0).toLocaleString('pt-BR', {\n    minimumFractionDigits: 2,\n    maximumFractionDigits: 2\n  })}`;\n}\n\nfunction parseMaybeJson(v) {\n  if (!v || v === 'null') return null;\n  if (typeof v === 'object') return v;\n\n  try {\n    const x = JSON.parse(String(v));\n    return x && typeof x === 'object' ? x : null;\n  } catch {\n    return null;\n  }\n}\n\nfunction deliveryType(v) {\n  const s = norm(v);\n  if (/\\b(entrega|delivery|entregar)\\b/.test(s)) return 'delivery';\n  if (/\\b(retirada|retirar|buscar|pickup)\\b/.test(s)) return 'pickup';\n  return '';\n}\n\nfunction payment(v) {\n  const s = norm(v);\n  if (/\\bpix\\b/.test(s)) return 'pix';\n  if (/\\b(dinheiro|cash)\\b/.test(s)) return 'cash';\n  if (/\\b(cartao|credito|debito|card)\\b/.test(s)) return 'card';\n  return '';\n}\n\nfunction isClearConfirmation(v) {\n  const s = norm(v);\n  return /^(sim|confirmo|sim confirmo|pode confirmar|pode fechar|fechado|pode ser|isso|isso mesmo|correto|ta certo|ok|pode mandar|manda ver|pode finalizar)[.! ]*$/.test(s);\n}\n\nfunction isNo(v) {\n  const s = norm(v);\n  return /^(nao|não|nao precisa|não precisa|sem troco|nao quero|não quero|so isso|só isso|isso e tudo|isso é tudo)[.! ]*$/.test(s);\n}\n\nfunction isRealName(v) {\n  const s = String(v ?? '').trim();\n  return Boolean(\n    s &&\n    s.length >= 2 &&\n    s.length <= 80 &&\n    !/^cliente$/i.test(s) &&\n    !/^unknown$/i.test(s) &&\n    !/^desconhecido$/i.test(s) &&\n    !/^\\+?\\d+$/.test(s)\n  );\n}\n\nfunction extractName(v) {\n  let s = String(v ?? '').trim();\n  s = s.replace(/^(meu nome (?:é|e)|sou|pode me chamar de|me chama de)\\s+/i, '').trim();\n\n  if (!isRealName(s)) return '';\n  if (/\\d/.test(s)) return '';\n  if (deliveryType(s) || payment(s) || isClearConfirmation(s) || isNo(s)) return '';\n\n  if (!/^[A-Za-zÀ-ÖØ-öø-ÿ'´` -]+$/.test(s)) return '';\n  return s;\n}\n\nfunction singleConfiguredFee(v) {\n  const s = String(v ?? '').trim();\n  if (!s) return null;\n\n  const matches = s.match(/\\d+(?:[.,]\\d+)?/g) || [];\n  const nums = matches\n    .map(x => Number(x.replace(',', '.')))\n    .filter(Number.isFinite);\n\n  if (nums.length === 1) return nums[0];\n  return null;\n}\n\nlet out = src;\n\nfor (let i = 0; i < 3; i++) {\n  if (out && typeof out === 'object' && !Array.isArray(out)) break;\n\n  if (Array.isArray(out)) {\n    out = out[0] ?? {};\n    continue;\n  }\n\n  try {\n    out = JSON.parse(clean(out));\n  } catch {\n    const s = clean(out);\n    const a = s.indexOf('{');\n    const b = s.lastIndexOf('}');\n\n    if (a >= 0 && b > a) {\n      try {\n        out = JSON.parse(s.slice(a, b + 1));\n      } catch {\n        out = { resposta: s };\n      }\n    } else {\n      out = { resposta: s };\n    }\n    break;\n  }\n}\n\nconst rawMessage = String(\n  $('Consolidar Buffer').first().json.message_text ?? ''\n).trim();\nconst msg = norm(rawMessage);\n\nconst catalog = Array.isArray($('Montar Catálogo Real').first().json.catalog)\n  ? $('Montar Catálogo Real').first().json.catalog\n  : [];\n\nconst byId = new Map(catalog.map(p => [String(p.id), p]));\nconst byName = new Map(catalog.map(p => [norm(p.name), p]));\n\nlet customer = {};\ntry {\n  customer = $('Buscar Cliente Atual').first().json ?? {};\n} catch {}\n\nlet shop = {};\ntry {\n  shop = $('Buscar Loja Atual').first().json ?? {};\n} catch {}\n\nconst savedCustomerName = String(\n  customer.name ??\n  customer.client_name ??\n  customer.customer_name ??\n  ''\n).trim();\n\nconst previous = parseMaybeJson(\n  $('Ler Rascunho do Pedido').first().json.order_draft\n);\n\nconst recentConfirmedOrder = parseMaybeJson(\n  $('Ler Pedido Confirmado Recente').first().json.recent_confirmed_order\n);\n\nconst aiDraft =\n  out.pedido && typeof out.pedido === 'object' && !Array.isArray(out.pedido)\n    ? out.pedido\n    : null;\n\nfunction canonicalItem(raw) {\n  if (!raw || typeof raw !== 'object') return null;\n\n  const requestedId = String(raw.product_id ?? '').trim();\n  const requestedName = String(raw.name ?? '').trim();\n\n  const real =\n    (requestedId && byId.get(requestedId)) ||\n    (requestedName && byName.get(norm(requestedName))) ||\n    null;\n\n  if (!real) return null;\n\n  return {\n    product_id: String(real.id),\n    name: String(real.name),\n    quantity: Math.max(1, Math.trunc(Number(raw.quantity) || 1)),\n    variation: String(raw.variation ?? ''),\n    unit_price: money(real.price) ?? 0,\n    notes: String(raw.notes ?? '')\n  };\n}\n\nfunction mergeItems(a, b) {\n  const map = new Map();\n\n  for (const raw of [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]) {\n    const item = canonicalItem(raw);\n    if (!item) continue;\n\n    const key = `${item.product_id}::${norm(item.variation)}`;\n    map.set(key, item);\n  }\n\n  return [...map.values()];\n}\n\nfunction normalizeDraft(raw) {\n  if (!raw || typeof raw !== 'object') return null;\n\n  return {\n    client_name: String(raw.client_name ?? '').trim(),\n    items: mergeItems([], raw.items),\n    observations: String(raw.observations ?? ''),\n    delivery_type: deliveryType(raw.delivery_type),\n    delivery_address: String(raw.delivery_address ?? '').trim(),\n    payment_method: payment(raw.payment_method),\n    change_for:\n      raw.change_for === null || raw.change_for === undefined || raw.change_for === ''\n        ? null\n        : money(raw.change_for),\n    delivery_fee:\n      raw.delivery_fee === null || raw.delivery_fee === undefined || raw.delivery_fee === ''\n        ? null\n        : money(raw.delivery_fee)\n  };\n}\n\nfunction mergeDraft(base, next) {\n  const b = normalizeDraft(base) ?? {\n    client_name: '',\n    items: [],\n    observations: '',\n    delivery_type: '',\n    delivery_address: '',\n    payment_method: '',\n    change_for: null,\n    delivery_fee: null\n  };\n\n  const n = normalizeDraft(next);\n\n  if (!n) return b.items.length ? b : null;\n\n  return {\n    client_name: isRealName(n.client_name) ? n.client_name : b.client_name,\n    items: mergeItems(b.items, n.items),\n    observations: n.observations || b.observations,\n    delivery_type: n.delivery_type || b.delivery_type,\n    delivery_address: n.delivery_address || b.delivery_address,\n    payment_method: n.payment_method || b.payment_method,\n    change_for: n.change_for !== null ? n.change_for : b.change_for,\n    delivery_fee: n.delivery_fee !== null ? n.delivery_fee : b.delivery_fee\n  };\n}\n\nlet prev = normalizeDraft(previous);\n\n// Nome de cliente recorrente é determinístico.\nif (prev && !isRealName(prev.client_name) && isRealName(savedCustomerName)) {\n  prev.client_name = savedCustomerName;\n}\n\nfunction missingField(p) {\n  if (!p || !Array.isArray(p.items) || !p.items.length) return 'items';\n  if (!isRealName(p.client_name)) return 'name';\n  if (!['delivery', 'pickup'].includes(p.delivery_type)) return 'delivery_type';\n  if (p.delivery_type === 'delivery' && !p.delivery_address) return 'address';\n  if (!['pix', 'cash', 'card'].includes(p.payment_method)) return 'payment';\n\n  if (\n    p.payment_method === 'cash' &&\n    (p.change_for === null || p.change_for === undefined)\n  ) {\n    return 'change';\n  }\n\n  if (\n    p.delivery_type === 'delivery' &&\n    (p.delivery_fee === null || p.delivery_fee === undefined)\n  ) {\n    return 'delivery_fee';\n  }\n\n  return null;\n}\n\nconst stageBefore = missingField(prev);\n\n// Junta rascunho anterior com o que a IA conseguiu extrair neste turno.\nlet pedido = mergeDraft(prev, aiDraft);\n\n// Detecta produtos REAIS diretamente na mensagem.\n// Isso é fallback; nunca cria produto fora do catálogo.\nfunction productMatchesFromMessage() {\n  const exact = [];\n  const tokenMatches = [];\n\n  const stop = new Set([\n    'pizza','pizzas','com','sem','para','uma','umas','quero','manda',\n    'mandar','pedir','pedido','por','favor','pfv','favor','de','da','do',\n    'catupiry','queijo','grande','media','média','pequena'\n  ]);\n\n  for (const p of catalog) {\n    const pname = norm(p.name);\n    if (!pname) continue;\n\n    if (msg.includes(pname)) {\n      exact.push(p);\n      continue;\n    }\n\n    const tokens = pname\n      .split(/[^a-z0-9]+/)\n      .filter(t => t.length >= 4 && !stop.has(t));\n\n    const hits = tokens.filter(t => msg.includes(t));\n    if (hits.length) {\n      tokenMatches.push({ p, hits: hits.length });\n    }\n  }\n\n  if (exact.length) return exact;\n\n  if (tokenMatches.length === 1) {\n    return [tokenMatches[0].p];\n  }\n\n  const best = tokenMatches.sort((a,b) => b.hits - a.hits);\n  if (best.length && best[0].hits > (best[1]?.hits ?? 0)) {\n    return [best[0].p];\n  }\n\n  return [];\n}\n\nconst mentionedProducts = productMatchesFromMessage();\n\nif (mentionedProducts.length) {\n  const detected = mentionedProducts.map(real => {\n    let quantity = 1;\n\n    const pname = norm(real.name);\n    const firstToken = pname.split(/[^a-z0-9]+/).find(t => t.length >= 4);\n    if (firstToken) {\n      const qre = new RegExp(`\\\\b(\\\\d+)\\\\s*(?:x\\\\s*)?(?:pizza[s]?\\\\s*)?${firstToken}\\\\b`, 'i');\n      const qm = msg.match(qre);\n      if (qm) quantity = Math.max(1, Number(qm[1]) || 1);\n    }\n\n    return {\n      product_id: String(real.id),\n      name: String(real.name),\n      quantity,\n      variation: '',\n      unit_price: money(real.price) ?? 0,\n      notes: ''\n    };\n  });\n\n  pedido = pedido ?? {\n    client_name: '',\n    items: [],\n    observations: '',\n    delivery_type: '',\n    delivery_address: '',\n    payment_method: '',\n    change_for: null,\n    delivery_fee: null\n  };\n\n  pedido.items = mergeItems(pedido.items, detected);\n}\n\n// Se existe cliente com nome real, preenche sem depender da IA.\nif (pedido && !isRealName(pedido.client_name) && isRealName(savedCustomerName)) {\n  pedido.client_name = savedCustomerName;\n}\n\n// Captura determinística do dado que o workflow estava esperando.\n// Assim a IA não pode \"esquecer\" de colocar nome/endereço/pagamento no JSON.\nif (pedido && stageBefore === 'name' && !isRealName(pedido.client_name)) {\n  const n = extractName(rawMessage);\n  if (n) pedido.client_name = n;\n}\n\nif (pedido && stageBefore === 'delivery_type' && !pedido.delivery_type) {\n  const t = deliveryType(rawMessage);\n  if (t) pedido.delivery_type = t;\n}\n\nif (\n  pedido &&\n  stageBefore === 'address' &&\n  pedido.delivery_type === 'delivery' &&\n  !pedido.delivery_address\n) {\n  if (\n    rawMessage.length >= 5 &&\n    !payment(rawMessage) &&\n    !deliveryType(rawMessage) &&\n    !isClearConfirmation(rawMessage)\n  ) {\n    pedido.delivery_address = rawMessage;\n  }\n}\n\nif (pedido && stageBefore === 'payment' && !pedido.payment_method) {\n  const m = payment(rawMessage);\n  if (m) pedido.payment_method = m;\n}\n\nif (\n  pedido &&\n  stageBefore === 'change' &&\n  pedido.payment_method === 'cash' &&\n  (pedido.change_for === null || pedido.change_for === undefined)\n) {\n  if (isNo(rawMessage)) {\n    pedido.change_for = 0;\n  } else {\n    const m = rawMessage.match(/\\d+(?:[.,]\\d+)?/);\n    if (m) pedido.change_for = money(m[0]);\n  }\n}\n\n// Regras derivadas do tipo de entrega/pagamento.\nif (pedido) {\n  if (pedido.delivery_type === 'pickup') {\n    pedido.delivery_address = '';\n    pedido.delivery_fee = 0;\n  }\n\n  if (pedido.delivery_type === 'delivery' && pedido.delivery_fee === null) {\n    const fee = singleConfiguredFee(shop.delivery_fee);\n    if (fee !== null) pedido.delivery_fee = fee;\n  }\n\n  if (pedido.payment_method !== 'cash') {\n    pedido.change_for = null;\n  }\n}\n\nlet missing = missingField(pedido);\n\nfunction ask(field) {\n  switch (field) {\n    case 'items':\n      return 'Me diz qual item do cardápio você quer pedir 😊';\n    case 'name':\n      return 'Como posso te chamar? 😊';\n    case 'delivery_type':\n      return 'Vai ser entrega ou retirada? 😊';\n    case 'address':\n      return 'Qual o endereço completo para entrega? 😊';\n    case 'payment':\n      return 'E como você prefere pagar: Pix, dinheiro ou cartão? 😊';\n    case 'change':\n      return 'Precisa de troco? Se sim, pra quanto? 😊';\n    case 'delivery_fee':\n      return 'Não consegui determinar a taxa de entrega com segurança. Vou chamar a equipe para te ajudar 😊';\n    default:\n      return 'Me confirma só mais um detalhe do pedido? 😊';\n  }\n}\n\nfunction summary(p) {\n  const itemLines = p.items.map(i =>\n    `• ${i.quantity}x ${i.name} — ${brl((i.unit_price || 0) * i.quantity)}`\n  );\n\n  const subtotal = p.items.reduce(\n    (s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 1),\n    0\n  );\n\n  const fee = p.delivery_type === 'delivery'\n    ? Number(p.delivery_fee || 0)\n    : 0;\n\n  const total = Math.round((subtotal + fee) * 100) / 100;\n\n  const pay =\n    p.payment_method === 'pix'\n      ? 'Pix'\n      : p.payment_method === 'cash'\n        ? 'Dinheiro'\n        : 'Cartão';\n\n  const delivery =\n    p.delivery_type === 'delivery'\n      ? `Entrega — ${p.delivery_address}`\n      : 'Retirada no local';\n\n  const change =\n    p.payment_method === 'cash'\n      ? (\n          Number(p.change_for) > 0\n            ? `\\n• Troco para ${brl(p.change_for)}`\n            : '\\n• Sem troco'\n        )\n      : '';\n\n  return (\n    `Fechado! 😊 Confere pra mim:\\n\\n` +\n    `${itemLines.join('\\n')}\\n` +\n    `• Subtotal — ${brl(subtotal)}\\n` +\n    (p.delivery_type === 'delivery' ? `• Taxa de entrega — ${brl(fee)}\\n` : '') +\n    `• Total — ${brl(total)}\\n` +\n    `• ${delivery}\\n` +\n    `• Pagamento — ${pay}${change}\\n\\n` +\n    `Posso confirmar seu pedido?`\n  );\n}\n\nlet resposta = String(out.resposta ?? '').trim();\nlet status = String(out.status_lead ?? 'em_atendimento');\nlet enviarCardapio = bool(out.enviar_cardapio);\nlet transbordo = bool(out.transbordo);\nlet motivoTransbordo = String(out.motivo_transbordo ?? '');\n\n// Cardápio: nunca manda URL como texto.\nconst nr = norm(resposta);\nif (\n  nr.includes('aqui esta nosso cardapio') ||\n  nr.includes('aqui esta o nosso cardapio') ||\n  nr.includes('segue nosso cardapio') ||\n  nr.includes('segue o cardapio') ||\n  (/https?:\\/\\/\\S+/i.test(resposta) && /supabase|storage/i.test(resposta))\n) {\n  enviarCardapio = true;\n}\n\nif (enviarCardapio) {\n  resposta = 'Oi! 😊 Aqui está nosso cardápio:';\n}\n\n// Se já há pedido, o estado determinístico manda no checkout.\nlet pedidoConfirmado = false;\nconst clearConfirmation = isClearConfirmation(rawMessage);\n\nif (pedido && pedido.items.length) {\n  // Não deixa a conversa pular campos.\n  if (missing) {\n    if (missing === 'delivery_fee') {\n      transbordo = true;\n      status = 'transbordo';\n      motivoTransbordo = 'Taxa de entrega não pôde ser determinada';\n    } else {\n      transbordo = false;\n      status = 'aguardando_dados';\n    }\n\n    resposta = ask(missing);\n  } else if (clearConfirmation) {\n    // CONFIRMAÇÃO É 100% DETERMINÍSTICA.\n    pedidoConfirmado = true;\n    transbordo = false;\n    status = 'pedido_confirmado';\n    motivoTransbordo = '';\n    resposta = '__CRIAR_PEDIDO__';\n  } else {\n    // Pedido completo: o workflow gera o resumo, sem depender da IA.\n    pedidoConfirmado = false;\n    transbordo = false;\n    status = 'aguardando_confirmacao';\n    resposta = summary(pedido);\n  }\n}\n\n// Nunca vaza marcadores técnicos, mesmo se a IA escrever.\nif (/processando[_\\s-]*pedido|__criar_pedido__/i.test(resposta) && !pedidoConfirmado) {\n  resposta = missing ? ask(missing) : summary(pedido);\n}\n\n// Follow-up: só quando o pedido já está COMPLETO e ficou aguardando o \"sim\".\n// Isso evita 5 Waits durante nome/endereço/pagamento.\nlet followupEligible =\n  !!(\n    pedido &&\n    pedido.items.length &&\n    !missing &&\n    !pedidoConfirmado &&\n    !transbordo\n  );\n\n\n// PROTEÇÃO PÓS-PEDIDO:\n// a memória do agente pode lembrar o checkout anterior, mas um pedido já confirmado\n// nunca pode ser reconstruído sozinho. Um novo pedido só nasce com produto real\n// explicitamente mencionado na mensagem atual.\nconst hasDraftBeforeThisTurn =\n  !!(\n    previous &&\n    Array.isArray(previous.items) &&\n    previous.items.length\n  );\n\nconst mentionsRealProductNow =\n  Array.isArray(mentionedProducts) &&\n  mentionedProducts.length > 0;\n\nconst hasRecentConfirmedOrder = !!recentConfirmedOrder;\n\nif (\n  hasRecentConfirmedOrder &&\n  !hasDraftBeforeThisTurn &&\n  !mentionsRealProductNow\n) {\n  pedido = null;\n  missing = null;\n  pedidoConfirmado = false;\n  followupEligible = false;\n\n  // Não deixa a memória repetir resumo/checkout/confirmação do pedido antigo.\n  const responseNorm = norm(resposta);\n  const looksLikeOldCheckout =\n    responseNorm.includes('posso confirmar seu pedido') ||\n    responseNorm.includes('confere pra mim') ||\n    responseNorm.includes('confere para mim') ||\n    responseNorm.includes('resumo do seu pedido') ||\n    responseNorm.includes('subtotal') ||\n    responseNorm.includes('taxa de entrega') ||\n    responseNorm.includes('__criar_pedido__') ||\n    responseNorm.includes('processando_pedido');\n\n  if (looksLikeOldCheckout) {\n    resposta = 'Seu pedido já foi confirmado 😊 Se precisar de algo sobre ele, pode me chamar por aqui.';\n    status = 'em_atendimento';\n    transbordo = false;\n    motivoTransbordo = '';\n  }\n}\n\nreturn [{\n  json: {\n    resposta,\n    status_lead: status,\n    enviar_cardapio: enviarCardapio,\n    followup_eligible: followupEligible,\n    transbordo,\n    motivo_transbordo: motivoTransbordo,\n    pedido_confirmado: pedidoConfirmado,\n    pedido,\n    validation_missing: missing\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6360,
+        608
+      ],
+      "id": "67ef6ab7-1f8f-4545-9f61-148f48e0037f",
+      "name": "Interpretar Resposta IA"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1e93aa72-ed2d-4a62-9714-9a9ec3890569",
+              "leftValue": "={{ $('Interpretar Resposta IA').first().json.pedido_confirmado === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        6720,
+        608
+      ],
+      "id": "7288f596-ee64-43eb-9ab0-937722355f0b",
+      "name": "Pedido confirmado?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Interpretar Resposta IA').first().json.pedido;\nconst catalog = Array.isArray($('Montar Catálogo Real').first().json.catalog)\n  ? $('Montar Catálogo Real').first().json.catalog\n  : [];\n\nif (!p || !Array.isArray(p.items) || !p.items.length) {\n  throw new Error('Pedido sem itens.');\n}\n\nfunction norm(v) {\n  return String(v ?? '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .trim()\n    .toLowerCase();\n}\n\nfunction num(v) {\n  if (v === null || v === undefined || v === '') return 0;\n  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;\n\n  let s = String(v).trim().replace(/\\s/g, '').replace(/^R\\$/i, '');\n  if (s.includes(',') && s.includes('.')) {\n    s = s.replace(/\\./g, '').replace(',', '.');\n  } else if (s.includes(',')) {\n    s = s.replace(',', '.');\n  }\n\n  s = s.replace(/[^\\d.-]/g, '');\n  const n = Number(s);\n  return Number.isFinite(n) ? n : 0;\n}\n\nfunction realName(v) {\n  const s = String(v ?? '').trim();\n  return Boolean(\n    s &&\n    !/^cliente$/i.test(s) &&\n    !/^unknown$/i.test(s) &&\n    !/^desconhecido$/i.test(s)\n  );\n}\n\nconst byId = new Map(catalog.map(x => [String(x.id), x]));\n\nconst items = p.items.map(i => {\n  const real = byId.get(String(i.product_id ?? '').trim());\n\n  if (!real) {\n    throw new Error(`Produto inexistente ou inativo: ${String(i.name ?? i.product_id ?? '')}`);\n  }\n\n  return {\n    product_id: String(real.id),\n    name: String(real.name),\n    quantity: Math.max(1, Math.trunc(Number(i.quantity) || 1)),\n    variation: String(i.variation ?? ''),\n    unit_price: num(real.price),\n    notes: String(i.notes ?? '')\n  };\n});\n\nlet customer = {};\ntry {\n  customer = $('Buscar Cliente Atual').first().json ?? {};\n} catch {}\n\nconst draftName = String(p.client_name ?? '').trim();\nconst savedName = String(customer.name ?? '').trim();\nconst pushName = String($('Normalizar Evento').first().json.push_name ?? '').trim();\n\n// Estratégia da V1 restaurada: o pedido NÃO deixa de ser criado por causa do nome.\n// Preferência: nome coletado > nome cadastrado > push_name > \"Cliente\".\n// O trigger do Supabase faz o upsert do customer ao inserir delivery_orders.\nconst clientName =\n  (realName(draftName) ? draftName : '') ||\n  (realName(savedName) ? savedName : '') ||\n  (realName(pushName) ? pushName : '') ||\n  'Cliente';\n\nconst type = String(p.delivery_type ?? '').trim();\nif (!['delivery', 'pickup'].includes(type)) {\n  throw new Error('Tipo de entrega inválido.');\n}\n\nconst address =\n  type === 'pickup'\n    ? ''\n    : String(p.delivery_address ?? '').trim();\n\nif (type === 'delivery' && !address) {\n  throw new Error('Pedido para entrega sem endereço.');\n}\n\nconst method = String(p.payment_method ?? '').trim();\nif (!['pix', 'cash', 'card'].includes(method)) {\n  throw new Error('Forma de pagamento inválida.');\n}\n\nif (\n  method === 'cash' &&\n  (p.change_for === null || p.change_for === undefined || p.change_for === '')\n) {\n  throw new Error('Pagamento em dinheiro sem informação de troco.');\n}\n\nconst subtotal = items.reduce(\n  (s, i) => s + i.unit_price * i.quantity,\n  0\n);\n\nconst deliveryFee =\n  type === 'pickup'\n    ? 0\n    : num(p.delivery_fee);\n\nconst total = Math.round((subtotal + deliveryFee) * 100) / 100;\n\nreturn [{\n  json: {\n    company_id: $('Normalizar Evento').first().json.company_id,\n    client_name: clientName,\n    client_phone: $('Normalizar Evento').first().json.phone_number,\n    items,\n    observations: String(p.observations ?? ''),\n    delivery_type: type,\n    delivery_address: address,\n    total_value: total,\n    status: 'Novos',\n    payment_method: method,\n    payment_status: method === 'pix' ? 'pending' : 'pay_on_delivery',\n    change_for: method === 'cash' ? num(p.change_for) : null\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6960,
+        480
+      ],
+      "id": "8c9a33d5-b771-4794-ad64-deef0f1d441c",
+      "name": "Preparar Pedido"
+    },
+    {
+      "parameters": {
+        "tableId": "delivery_orders",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "company_id",
+              "fieldValue": "={{ $json.company_id }}"
+            },
+            {
+              "fieldId": "client_name",
+              "fieldValue": "={{ $json.client_name }}"
+            },
+            {
+              "fieldId": "client_phone",
+              "fieldValue": "={{ $json.client_phone }}"
+            },
+            {
+              "fieldId": "items",
+              "fieldValue": "={{ $json.items }}"
+            },
+            {
+              "fieldId": "observations",
+              "fieldValue": "={{ $json.observations }}"
+            },
+            {
+              "fieldId": "delivery_type",
+              "fieldValue": "={{ $json.delivery_type }}"
+            },
+            {
+              "fieldId": "delivery_address",
+              "fieldValue": "={{ $json.delivery_address }}"
+            },
+            {
+              "fieldId": "total_value",
+              "fieldValue": "={{ $json.total_value }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "Novos"
+            },
+            {
+              "fieldId": "payment_method",
+              "fieldValue": "={{ $json.payment_method }}"
+            },
+            {
+              "fieldId": "payment_status",
+              "fieldValue": "={{ $json.payment_status }}"
+            },
+            {
+              "fieldId": "change_for",
+              "fieldValue": "={{ $json.change_for }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        7200,
+        480
+      ],
+      "id": "beaf2798-45a3-4eb7-b32c-c0db7e01a44f",
+      "name": "Criar Pedido",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "eab75c20-6603-48c3-bf3e-0ee3aecb464c",
+              "leftValue": "={{ $('Interpretar Resposta IA').first().json.transbordo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5872,
+        448
+      ],
+      "id": "8e9ac604-5fa5-4f1a-892b-9fe1268172fa",
+      "name": "Transbordo?"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:paused:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 3600
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        6160,
+        400
+      ],
+      "id": "8146b949-1325-4a4b-83c6-62081b0746a9",
+      "name": "Pausar conversa",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:ai_sending:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 10
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        6528,
+        464
+      ],
+      "id": "66d687aa-4f31-4fa2-b5cd-9c861ce3eafa",
+      "name": "Marcar envio IA - texto",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "remoteJid": "={{ $('Normalizar Evento').first().json.reply_jid }}",
+        "messageText": "={{ $('Interpretar Resposta IA').first().json.resposta }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        6736,
+        464
+      ],
+      "id": "cc9601e0-6ccf-4385-a538-5c0174e77162",
+      "name": "Enviar Resposta",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "15649737-dae8-47fa-a6b1-d0275ed0e79f",
+              "leftValue": "={{ $('Interpretar Resposta IA').first().json.enviar_cardapio }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        7344,
+        704
+      ],
+      "id": "2ba4b952-6b5b-4836-ba90-3a5177d3d687",
+      "name": "Enviar cardápio visual?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        7920,
+        848
+      ],
+      "id": "b1df9ac9-0641-46a9-8763-2d03362b14d0",
+      "name": "Fim"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "menu_assets",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "keyName": "is_active",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        8192,
+        672
+      ],
+      "id": "c62bedb8-7e69-46ac-9534-a3af802b9ba5",
+      "name": "Buscar Cardápio Visual",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items\n  .filter(i => i.json?.image_url)\n  .sort((a,b)=>(Number(a.json.page_number)||0)-(Number(b.json.page_number)||0));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8176,
+        480
+      ],
+      "id": "e7877bd3-b501-4dd9-a5ad-87394dd700a5",
+      "name": "Ordenar Páginas"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:ai_sending:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 10
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        8416,
+        480
+      ],
+      "id": "5a5c2745-9a15-4df5-8b82-072649806e96",
+      "name": "Marcar envio IA - imagem",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "send-image",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "remoteJid": "={{ $('Normalizar Evento').first().json.reply_jid }}",
+        "media": "={{ $json.image_url }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        8656,
+        480
+      ],
+      "id": "cca31180-1973-4e80-b99a-23c0d70d98f5",
+      "name": "Enviar Página do Cardápio",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "ARLES DELIVERY — AGENTE V2.8\n\n• Uma pergunta por vez no checkout\n• Busca cliente existente por empresa + telefone\n• Nome obrigatório em novos pedidos\n• Follow-up único após 30 min sem resposta\n• Captura nota 1–5 após entrega\n• Nota 4–5 pede marcação da empresa + @arlesdelivery\n• Cardápio visual enviado como imagem, nunca link\n\nRode module6_operacao_posvenda.sql.\nAtive também o workflow ARLES DELIVERY POS-VENDA.",
+        "height": 300,
+        "width": 1100,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "232a7f58-cbd4-4f34-af26-dbfa2bd95734",
+      "name": "SETUP"
+    },
+    {
+      "parameters": {
+        "content": "Entrada segura: tenant pelo company_id enviado pelo Arles, deduplicação por message_id, pausa humana por empresa+telefone.",
+        "height": 150,
+        "width": 900,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        304,
+        864
+      ],
+      "id": "501b7426-57d7-4591-bec5-16339fc8f516",
+      "name": "ENTRADA"
+    },
+    {
+      "parameters": {
+        "content": "A IA só possui ferramentas de LEITURA + calculadora. Escrita de pedido ocorre fora do agente, de forma determinística.",
+        "height": 150,
+        "width": 1100,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4672,
+        1168
+      ],
+      "id": "bf2a4b57-0908-4e3f-859f-eecd20a6fe70",
+      "name": "AGENTE"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "customers",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "keyName": "phone_number",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.phone_number }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        6128,
+        1168
+      ],
+      "id": "e96f0bb8-6b9d-4480-9386-4f398fffb038",
+      "name": "Consultar Cliente",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:last_inbound:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "={{ $('Normalizar Evento').first().json.message_id }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        880
+      ],
+      "id": "b475a804-3893-424d-9a6e-2fcc6715ab6b",
+      "name": "Registrar última entrada",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "review_pending",
+        "key": "=arles:awaiting_review:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        4560,
+        368
+      ],
+      "id": "ba98ecd9-617f-4fd4-927c-2fbd7ffbc07d",
+      "name": "Verificar avaliação pendente",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const pendingRaw = String($json.review_pending ?? '').trim();\nconst text = String($('Consolidar Buffer').first().json.message_text ?? '').trim();\n\nlet ctx = {};\nif (pendingRaw) {\n  try { ctx = JSON.parse(pendingRaw); }\n  catch { ctx = { order_id: pendingRaw }; }\n}\n\nconst match = text.match(/^\\s*([1-5])(?:[.,]0)?\\s*$/);\nconst isRating = Boolean(pendingRaw && match);\n\nreturn [{\n  json: {\n    is_rating: isRating,\n    rating: isRating ? Number(match[1]) : null,\n    order_id: String(ctx.order_id ?? ''),\n    customer_id: String(ctx.customer_id ?? ''),\n    customer_name: String(ctx.client_name ?? ''),\n    company_name: String(ctx.company_name ?? $('Normalizar Evento').first().json.company_name ?? ''),\n    company_instagram: String(ctx.company_instagram ?? ''),\n    phone_number: $('Normalizar Evento').first().json.phone_number\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4800,
+        368
+      ],
+      "id": "e383d6ec-3dcf-4bcc-928d-ea6fc1a452d7",
+      "name": "Interpretar avaliação pendente"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "01cdf0e7-859a-44fa-8294-c690400c7a5c",
+              "leftValue": "={{ $json.is_rating }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5040,
+        368
+      ],
+      "id": "d25344b3-10d3-4c5c-b19a-4a7fa3546cc6",
+      "name": "É resposta de avaliação?"
+    },
+    {
+      "parameters": {
+        "tableId": "delivery_reviews",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "company_id",
+              "fieldValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "fieldId": "order_id",
+              "fieldValue": "={{ $('Interpretar avaliação pendente').item.json.order_id }}"
+            },
+            {
+              "fieldId": "customer_name",
+              "fieldValue": "={{ $('Interpretar avaliação pendente').item.json.customer_name }}"
+            },
+            {
+              "fieldId": "phone_number",
+              "fieldValue": "={{ $('Normalizar Evento').first().json.phone_number }}"
+            },
+            {
+              "fieldId": "rating",
+              "fieldValue": "={{ $('Interpretar avaliação pendente').item.json.rating }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5280,
+        224
+      ],
+      "id": "6edeb839-59ec-4fa9-b795-2405818caa3c",
+      "name": "Registrar Avaliação",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=arles:awaiting_review:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        5520,
+        224
+      ],
+      "id": "1ff3ef97-bd77-424b-9218-a5c64580ef23",
+      "name": "Limpar avaliação pendente",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Interpretar avaliação pendente').first().json;\nconst rating = Number(r.rating || 0);\nconst companyName = String(r.company_name || 'a gente').trim();\nlet instagram = String(r.company_instagram || '').trim();\n\nif (instagram) {\n  instagram = instagram\n    .replace(/^https?:\\/\\/(www\\.)?instagram\\.com\\//i, '')\n    .replace(/\\/.*$/, '')\n    .replace(/^@/, '')\n    .trim();\n}\n\nlet resposta;\nif (rating >= 4) {\n  const empresaTag = instagram ? `@${instagram}` : companyName;\n  resposta = `Aee! 💙 Obrigado pela nota ${rating}/5. Se postar seu pedido, marca ${empresaTag} e @arlesdelivery pra gente ver 😄`;\n} else {\n  resposta = `Obrigado pela nota ${rating}/5 💙 Seu feedback ajuda a gente a melhorar.`;\n}\n\nreturn [{ json: { resposta } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5760,
+        224
+      ],
+      "id": "bcb09f31-683f-4f3f-942c-434109ecbdf3",
+      "name": "Montar resposta avaliação"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:ai_sending:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 10
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        6000,
+        224
+      ],
+      "id": "31a1ff31-0f19-45ca-a305-fea7064018a9",
+      "name": "Marcar envio IA - avaliação",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "remoteJid": "={{ $('Normalizar Evento').first().json.reply_jid }}",
+        "messageText": "={{ $('Montar resposta avaliação').item.json.resposta }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        6240,
+        224
+      ],
+      "id": "b74fbe67-3e58-4c1e-b79c-25150241c6b5",
+      "name": "Enviar resposta avaliação",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Interpretar Resposta IA').first().json;\nreturn [{\n  json: {\n    should_followup:\n      r.followup_eligible === true &&\n      r.pedido_confirmado !== true &&\n      r.transbordo !== true\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6752,
+        1280
+      ],
+      "id": "4bfb5e01-7bb9-44f5-99e9-a9ef3b15fc5a",
+      "name": "Decidir follow-up"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4a4f51b6-e611-4070-b0f1-a23db8eb7a12",
+              "leftValue": "={{ $json.should_followup }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        6992,
+        1280
+      ],
+      "id": "3c212d47-61ff-4e6d-8286-f80ca940d131",
+      "name": "Deve agendar follow-up?"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        7232,
+        1200
+      ],
+      "id": "c631a515-e5d9-4c17-b566-92a96ee1e803",
+      "name": "Aguardar follow-up 30 min",
+      "webhookId": "ac0a969c-972d-4cd3-b01a-356677f3befa"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "last_inbound",
+        "key": "=arles:last_inbound:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        7472,
+        1200
+      ],
+      "id": "cc569448-53cb-419c-add3-b485e9349a7c",
+      "name": "Ler última entrada",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "followup_sent",
+        "key": "=arles:followup_sent:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        7712,
+        1200
+      ],
+      "id": "eb53e834-561c-44b4-ad33-77abb5c762df",
+      "name": "Ler follow-up enviado",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const currentMessageId = String($('Normalizar Evento').first().json.message_id ?? '');\nconst lastInbound = String($('Ler última entrada').first().json.last_inbound ?? '');\nconst sent = String($json.followup_sent ?? '').trim();\n\nreturn [{\n  json: {\n    can_send_followup: Boolean(currentMessageId && lastInbound === currentMessageId && !sent)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7952,
+        1200
+      ],
+      "id": "625d05f1-4173-4850-9698-63f09fbe713d",
+      "name": "Validar follow-up"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2196b60a-2f34-462a-8f4a-39dde1878054",
+              "leftValue": "={{ $json.can_send_followup }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        8192,
+        1200
+      ],
+      "id": "0076352e-a7eb-4bb1-9e54-21ba7262204c",
+      "name": "Enviar follow-up agora?"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:ai_sending:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 10
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        8432,
+        1120
+      ],
+      "id": "04e81337-feb0-4a98-bfab-15c787c768f7",
+      "name": "Marcar envio IA - follow-up",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "remoteJid": "={{ $('Normalizar Evento').first().json.reply_jid }}",
+        "messageText": "Oi 😊 Quer confirmar seu pedido?",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        8672,
+        1120
+      ],
+      "id": "942cb37c-c2e8-458a-90e2-e716096df707",
+      "name": "Enviar follow-up",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:followup_sent:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 14400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        8912,
+        1120
+      ],
+      "id": "184e33f8-2bd8-4e50-9c1c-985f7c1cd34a",
+      "name": "Marcar follow-up enviado",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Preparar Pedido').first().json;\nlet shop = {};\ntry {\n  shop = $('Buscar Loja Atual').first().json ?? {};\n} catch {}\n\nconst primeiroNome = String(p.client_name ?? '').trim().split(/\\s+/)[0];\nconst nome = primeiroNome && !/^cliente$/i.test(primeiroNome)\n  ? `, ${primeiroNome}`\n  : '';\n\nlet resposta = `Fechou${nome}! ✅ Seu pedido foi confirmado e já está com a equipe. Vou te atualizando por aqui 😊`;\n\nif (p.payment_method === 'pix') {\n  const pix = String(shop.pix_key ?? '').trim();\n  if (pix) {\n    resposta += `\\n\\nPix: ${pix}\\nDepois do pagamento, pode mandar o comprovante por aqui.`;\n  }\n}\n\nreturn [{ json: { resposta } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7920,
+        352
+      ],
+      "id": "578520b6-d6a7-4841-be81-5a2fc8bd4373",
+      "name": "Montar confirmação após criar"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "remoteJid": "={{ $('Normalizar Evento').first().json.reply_jid }}",
+        "messageText": "={{ $('Montar confirmação após criar').first().json.resposta }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        8160,
+        352
+      ],
+      "id": "af8d81f2-0bda-4468-9ead-18f55d9e0ada",
+      "name": "Enviar confirmação real",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "delivery_products",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "keyName": "is_active",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5200,
+        608
+      ],
+      "id": "693ef2c9-0cbb-4833-8294-7cb14a667aa7",
+      "name": "Carregar Catálogo Real",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function norm(v) {\n  return String(v ?? '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .trim()\n    .toLowerCase();\n}\n\nfunction money(v) {\n  if (v === null || v === undefined || v === '') return null;\n  if (typeof v === 'number') return Number.isFinite(v) ? v : null;\n\n  let s = String(v).trim().replace(/\\s/g, '').replace(/^R\\$/i, '');\n  if (s.includes(',') && s.includes('.')) {\n    s = s.replace(/\\./g, '').replace(',', '.');\n  } else if (s.includes(',')) {\n    s = s.replace(',', '.');\n  }\n\n  s = s.replace(/[^\\d.-]/g, '');\n  const n = Number(s);\n  return Number.isFinite(n) ? n : null;\n}\n\nconst rows = $input.all()\n  .map(i => i.json ?? {})\n  .filter(p => String(p.id ?? '').trim() && String(p.name ?? '').trim())\n  .map(p => ({\n    id: String(p.id).trim(),\n    name: String(p.name).trim(),\n    category: String(p.category ?? '').trim(),\n    description: String(p.description ?? '').trim().slice(0, 180),\n    price: money(p.price)\n  }))\n  .filter(p => p.price !== null);\n\nconst unique = [];\nconst seen = new Set();\n\nfor (const p of rows) {\n  if (seen.has(p.id)) continue;\n  seen.add(p.id);\n  unique.push(p);\n}\n\nfunction scoreUpsell(p) {\n  const s = norm(`${p.category} ${p.name}`);\n\n  if (/(bebida|bebidas|refrigerante|refrigerantes|refri|coca|pepsi|guarana|fanta|sprite|suco|agua)/.test(s)) {\n    return 100;\n  }\n  if (/(sobremesa|sobremesas|doce|doces|pudim|brownie|sorvete|acai)/.test(s)) {\n    return 70;\n  }\n  if (/(acompanhamento|acompanhamentos|adicional|adicionais|porcao|porcoes|batata)/.test(s)) {\n    return 40;\n  }\n\n  return 0;\n}\n\nconst upsellCandidate = [...unique]\n  .map(p => ({ ...p, _score: scoreUpsell(p) }))\n  .filter(p => p._score > 0)\n  .sort((a, b) => b._score - a._score || a.price - b.price)[0] ?? null;\n\nconst catalogForAI = unique.map(p => ({\n  id: p.id,\n  name: p.name,\n  category: p.category,\n  price: p.price,\n  description: p.description\n}));\n\nreturn [{\n  json: {\n    catalog: unique,\n    catalog_for_ai: catalogForAI,\n    upsell_candidate: upsellCandidate\n      ? {\n          id: upsellCandidate.id,\n          name: upsellCandidate.name,\n          category: upsellCandidate.category,\n          price: upsellCandidate.price\n        }\n      : null,\n    product_count: unique.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5440,
+        608
+      ],
+      "id": "c470983d-d57b-4093-80c0-fe218229dc2a",
+      "name": "Montar Catálogo Real"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "order_draft",
+        "key": "=arles:order_draft:v30:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        5760,
+        640
+      ],
+      "id": "937a9a2f-3088-434f-822c-bcb2fb4f30d5",
+      "name": "Ler Rascunho do Pedido",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:order_draft:v30:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "={{ JSON.stringify($('Interpretar Resposta IA').first().json.pedido ?? null) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 7200
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        6480,
+        608
+      ],
+      "id": "fd7ec4e0-ede6-4051-850d-efcdce2bf542",
+      "name": "Salvar Rascunho do Pedido",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=arles:order_draft:v30:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        7680,
+        352
+      ],
+      "id": "5888c8a7-77f8-4740-8cbf-d54dada83e00",
+      "name": "Limpar Rascunho do Pedido",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "customers",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "keyName": "phone_number",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.phone_number }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5568,
+        816
+      ],
+      "id": "6d1900a2-cab4-475a-8ce5-402612b41306",
+      "name": "Buscar Cliente Atual",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "delivery_store_info",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5760,
+        816
+      ],
+      "id": "396d8075-6e73-4818-afbc-af3929071cde",
+      "name": "Buscar Loja Atual",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "delivery_orders",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "keyName": "client_phone",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.phone_number }}"
+            },
+            {
+              "keyName": "payment_method",
+              "condition": "eq",
+              "keyValue": "pix"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3376,
+        1056
+      ],
+      "id": "f6e41487-c2f0-4e6f-a944-a1e1564e29a1",
+      "name": "Buscar Pedido PIX Pendente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all()\n  .map(i => i.json ?? {})\n  .filter(r => r && r.id);\n\nconst now = Date.now();\nconst MAX_AGE_MS = 8 * 60 * 60 * 1000;\n\nconst candidates = rows\n  .filter(r => {\n    if (String(r.payment_method ?? '').toLowerCase() !== 'pix') return false;\n\n    const paymentStatus = String(r.payment_status ?? '').toLowerCase();\n    if (!['pending', 'pending_approval'].includes(paymentStatus)) return false;\n\n    const orderStatus = String(r.status ?? '').toLowerCase();\n    if (['finalizados', 'cancelados'].includes(orderStatus)) return false;\n\n    const created = new Date(r.created_at ?? 0).getTime();\n    if (!Number.isFinite(created) || now - created > MAX_AGE_MS) return false;\n\n    return true;\n  })\n  .sort((a, b) =>\n    new Date(b.created_at ?? 0).getTime() -\n    new Date(a.created_at ?? 0).getTime()\n  );\n\nconst order = candidates[0] ?? null;\n\nreturn [{\n  json: {\n    found: !!order,\n    order_id: order?.id ?? '',\n    payment_status: order?.payment_status ?? '',\n    client_name: order?.client_name ?? '',\n    total_value: order?.total_value ?? null,\n    created_at: order?.created_at ?? null,\n    order_status: order?.status ?? ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3616,
+        1056
+      ],
+      "id": "ad4caf6f-566b-44c0-801f-a6bc4b727b40",
+      "name": "Selecionar Pedido PIX Pendente"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b8c69c56-b3bd-47fe-841b-a0772d098a2c",
+              "leftValue": "={{ $json.found === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3856,
+        1056
+      ],
+      "id": "c5ef3f7c-cd10-4375-ae90-816b07541f7a",
+      "name": "Tem PIX aguardando comprovante?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "12c5b7e8-c00a-451f-a848-6485c5653b3a",
+              "leftValue": "={{ $('Normalizar Imagem').first().json.looks_like_pix_proof === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4096,
+        1056
+      ],
+      "id": "3ea9e8df-147d-4d26-8be3-0b7c5c0a936a",
+      "name": "Imagem parece comprovante PIX?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const media = $('Baixar Imagem').first().json?.data ?? {};\n\nlet base64 = String(media.base64 ?? '').trim();\nif (!base64) {\n  throw new Error('A Evolution não retornou o base64 da imagem.');\n}\n\nlet mime = String(\n  media.mimetype ??\n  media.mimeType ??\n  media.contentType ??\n  ''\n).trim();\n\nif (!/^image\\//i.test(mime)) {\n  mime = 'image/jpeg';\n}\n\nconst paymentProofUrl = /^data:/i.test(base64)\n  ? base64\n  : `data:${mime};base64,${base64}`;\n\nreturn [{\n  json: {\n    order_id: $('Selecionar Pedido PIX Pendente').first().json.order_id,\n    payment_proof_url: paymentProofUrl,\n    payment_status: 'pending_approval',\n    updated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        976
+      ],
+      "id": "dfc3ea50-5d5b-49c5-a002-5dab0ff3f26a",
+      "name": "Preparar Comprovante PIX"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "delivery_orders",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Preparar Comprovante PIX').first().json.order_id }}"
+            },
+            {
+              "keyName": "company_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalizar Evento').first().json.company_id }}"
+            },
+            {
+              "keyName": "payment_status",
+              "condition": "eq",
+              "keyValue": "={{ $('Selecionar Pedido PIX Pendente').first().json.payment_status }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "payment_status",
+              "fieldValue": "pending_approval"
+            },
+            {
+              "fieldId": "payment_proof_url",
+              "fieldValue": "={{ $('Preparar Comprovante PIX').first().json.payment_proof_url }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ $('Preparar Comprovante PIX').first().json.updated_at }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4576,
+        976
+      ],
+      "id": "4eda341f-d9fb-4783-8656-3848d26b52aa",
+      "name": "Salvar Comprovante no Pedido",
+      "credentials": {
+        "supabaseApi": {
+          "id": "tnZhbNXApyXihykV",
+          "name": "Painel"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:ai_sending:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 10
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        4816,
+        976
+      ],
+      "id": "b9885b02-8b63-42a6-8534-6b2088415957",
+      "name": "Marcar envio IA - comprovante",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "remoteJid": "={{ $('Normalizar Evento').first().json.reply_jid }}",
+        "messageText": "=Recebi seu comprovante 😊 Ele foi anexado somente ao pedido #{{ $('Selecionar Pedido PIX Pendente').first().json.order_id.slice(0,4).toUpperCase() }} e está aguardando a conferência da equipe.",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        5056,
+        976
+      ],
+      "id": "2cab1bf7-7323-4fbc-b1b1-06a15e28c835",
+      "name": "Confirmar recebimento do comprovante",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:ai_sending:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 10
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        4336,
+        1168
+      ],
+      "id": "aaeceec4-5659-4447-af8d-a25ee88634d6",
+      "name": "Marcar envio IA - comprovante inválido",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Normalizar Evento').first().json.instance_name }}",
+        "remoteJid": "={{ $('Normalizar Evento').first().json.reply_jid }}",
+        "messageText": "Recebi a imagem, mas não consegui identificar um comprovante de Pix. Pode me enviar uma foto ou print do comprovante? 😊",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        4576,
+        1168
+      ],
+      "id": "ddd1dbad-1303-4fc3-9714-36c54fd35571",
+      "name": "Pedir comprovante novamente",
+      "credentials": {
+        "evolutionApi": {
+          "id": "4L7zen8PyXz2q40b",
+          "name": "delivery"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "recent_confirmed_order",
+        "key": "=arles:recent_confirmed_order:v32:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        5880,
+        816
+      ],
+      "id": "e42f962b-4e6c-4e97-8f49-916ad5bb1ad8",
+      "name": "Ler Pedido Confirmado Recente",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:recent_confirmed_order:v32:{{ $('Normalizar Evento').first().json.company_id }}:{{ $('Normalizar Evento').first().json.phone_number }}",
+        "value": "={{ JSON.stringify({ order_id: $('Criar Pedido').first().json.id || '', created_at: $now.toISO() }) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        7440,
+        352
+      ],
+      "id": "73d60347-d166-4ca8-857f-2a09a508d9d2",
+      "name": "Marcar Pedido Confirmado Recente",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Arles": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Evento": {
+      "main": [
+        [
+          {
+            "node": "Mensagem válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem válida?": {
+      "main": [
+        [
+          {
+            "node": "Mensagem enviada pela loja?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignorar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem enviada pela loja?": {
+      "main": [
+        [
+          {
+            "node": "Verificar marcador IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verificar duplicidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar marcador IA": {
+      "main": [
+        [
+          {
+            "node": "Foi enviada pela IA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Foi enviada pela IA?": {
+      "main": [
+        [
+          {
+            "node": "Ignorar Saída da IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pausar por atendimento humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausar por atendimento humano": {
+      "main": [
+        [
+          {
+            "node": "Fim atendimento humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar duplicidade": {
+      "main": [
+        [
+          {
+            "node": "Mensagem duplicada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem duplicada?": {
+      "main": [
+        [
+          {
+            "node": "Ignorar Duplicada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar como processada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar como processada": {
+      "main": [
+        [
+          {
+            "node": "Registrar última entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar pausa": {
+      "main": [
+        [
+          {
+            "node": "IA pausada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA pausada?": {
+      "main": [
+        [
+          {
+            "node": "Fim IA pausada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tipo da mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo da mensagem": {
+      "main": [
+        [
+          {
+            "node": "Mensagem Texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Baixar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Baixar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Texto": {
+      "main": [
+        [
+          {
+            "node": "Buffer - adicionar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Imagem para arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Imagem para arquivo": {
+      "main": [
+        [
+          {
+            "node": "Analisar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Buscar Pedido PIX Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Áudio para arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Áudio para arquivo": {
+      "main": [
+        [
+          {
+            "node": "Ajustar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ajustar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Transcrever Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever Áudio": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Buffer - adicionar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buffer - adicionar": {
+      "main": [
+        [
+          {
+            "node": "Aguardar agrupamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar agrupamento": {
+      "main": [
+        [
+          {
+            "node": "Buffer - ler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buffer - ler": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar Buffer": {
+      "main": [
+        [
+          {
+            "node": "Buffer - limpar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buffer - limpar": {
+      "main": [
+        [
+          {
+            "node": "Verificar avaliação pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4o-mini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória por Empresa + Telefone": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Loja": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Configurações": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Produtos": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Variações": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Cardápio Visual": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculadora": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente Arles Delivery": {
+      "main": [
+        [
+          {
+            "node": "Interpretar Resposta IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar Resposta IA": {
+      "main": [
+        [
+          {
+            "node": "Salvar Rascunho do Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedido confirmado?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Transbordo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Pedido": {
+      "main": [
+        [
+          {
+            "node": "Criar Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Pedido": {
+      "main": [
+        [
+          {
+            "node": "Marcar Pedido Confirmado Recente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transbordo?": {
+      "main": [
+        [
+          {
+            "node": "Pausar conversa",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar envio IA - texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausar conversa": {
+      "main": [
+        [
+          {
+            "node": "Marcar envio IA - texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar envio IA - texto": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Enviar cardápio visual?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Decidir follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar cardápio visual?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Cardápio Visual",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Cardápio Visual": {
+      "main": [
+        [
+          {
+            "node": "Ordenar Páginas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ordenar Páginas": {
+      "main": [
+        [
+          {
+            "node": "Marcar envio IA - imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar envio IA - imagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar Página do Cardápio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar última entrada": {
+      "main": [
+        [
+          {
+            "node": "Verificar pausa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar avaliação pendente": {
+      "main": [
+        [
+          {
+            "node": "Interpretar avaliação pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar avaliação pendente": {
+      "main": [
+        [
+          {
+            "node": "É resposta de avaliação?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É resposta de avaliação?": {
+      "main": [
+        [
+          {
+            "node": "Registrar Avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Carregar Catálogo Real",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Avaliação": {
+      "main": [
+        [
+          {
+            "node": "Limpar avaliação pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar avaliação pendente": {
+      "main": [
+        [
+          {
+            "node": "Montar resposta avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar resposta avaliação": {
+      "main": [
+        [
+          {
+            "node": "Marcar envio IA - avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar envio IA - avaliação": {
+      "main": [
+        [
+          {
+            "node": "Enviar resposta avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir follow-up": {
+      "main": [
+        [
+          {
+            "node": "Deve agendar follow-up?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deve agendar follow-up?": {
+      "main": [
+        [
+          {
+            "node": "Aguardar follow-up 30 min",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar follow-up 30 min": {
+      "main": [
+        [
+          {
+            "node": "Ler última entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler última entrada": {
+      "main": [
+        [
+          {
+            "node": "Ler follow-up enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler follow-up enviado": {
+      "main": [
+        [
+          {
+            "node": "Validar follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar follow-up": {
+      "main": [
+        [
+          {
+            "node": "Enviar follow-up agora?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar follow-up agora?": {
+      "main": [
+        [
+          {
+            "node": "Marcar envio IA - follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar envio IA - follow-up": {
+      "main": [
+        [
+          {
+            "node": "Enviar follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar follow-up": {
+      "main": [
+        [
+          {
+            "node": "Marcar follow-up enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar confirmação após criar": {
+      "main": [
+        [
+          {
+            "node": "Enviar confirmação real",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar confirmação real": {
+      "main": [
+        [
+          {
+            "node": "Fim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carregar Catálogo Real": {
+      "main": [
+        [
+          {
+            "node": "Montar Catálogo Real",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Catálogo Real": {
+      "main": [
+        [
+          {
+            "node": "Buscar Cliente Atual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Rascunho do Pedido": {
+      "main": [
+        [
+          {
+            "node": "Ler Pedido Confirmado Recente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Rascunho do Pedido": {
+      "main": [
+        [
+          {
+            "node": "Pedido confirmado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Rascunho do Pedido": {
+      "main": [
+        [
+          {
+            "node": "Montar confirmação após criar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Cliente Atual": {
+      "main": [
+        [
+          {
+            "node": "Buscar Loja Atual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Loja Atual": {
+      "main": [
+        [
+          {
+            "node": "Ler Rascunho do Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pedido PIX Pendente": {
+      "main": [
+        [
+          {
+            "node": "Selecionar Pedido PIX Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecionar Pedido PIX Pendente": {
+      "main": [
+        [
+          {
+            "node": "Tem PIX aguardando comprovante?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem PIX aguardando comprovante?": {
+      "main": [
+        [
+          {
+            "node": "Imagem parece comprovante PIX?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buffer - adicionar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Imagem parece comprovante PIX?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Comprovante PIX",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar envio IA - comprovante inválido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Comprovante PIX": {
+      "main": [
+        [
+          {
+            "node": "Salvar Comprovante no Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Comprovante no Pedido": {
+      "main": [
+        [
+          {
+            "node": "Marcar envio IA - comprovante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar envio IA - comprovante": {
+      "main": [
+        [
+          {
+            "node": "Confirmar recebimento do comprovante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar recebimento do comprovante": {
+      "main": [
+        [
+          {
+            "node": "Fim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar envio IA - comprovante inválido": {
+      "main": [
+        [
+          {
+            "node": "Pedir comprovante novamente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir comprovante novamente": {
+      "main": [
+        [
+          {
+            "node": "Fim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Pedido Confirmado Recente": {
+      "main": [
+        [
+          {
+            "node": "Agente Arles Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Pedido Confirmado Recente": {
+      "main": [
+        [
+          {
+            "node": "Limpar Rascunho do Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b75b72b1-0fb3-4724-88c9-bfc7f23fee05",
+  "meta": {
+    "instanceId": "020eaa134beb5b1cbfbc1da945ba212566cd11f1f68c6e797da84666544a948b"
+  },
+  "id": "RwwaqQ4W5cb1XGz4",
+  "tags": []
+}

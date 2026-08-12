@@ -1,0 +1,426 @@
+{
+  "name": "ARLES DELIVERY POS-VENDA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "arles-delivery-events",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -900,
+        300
+      ],
+      "id": "26c6ab3c-68b7-4856-8eff-996f006b75c6",
+      "name": "Webhook Pós-venda",
+      "webhookId": "b6f2ad19-ef9f-4ddc-a7bd-6952b30e3c69"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\n\nconst status = String(body.status ?? '').trim();\nconst phone = String(body.client_phone ?? '').replace(/\\D/g, '');\nconst instance = String(body.instance_name ?? '').trim();\n\nlet message = '';\nif (status === 'Em preparo') {\n  message = '👨‍🍳 Seu pedido já está em preparo!';\n} else if (status === 'Pronto') {\n  message = '✅ Seu pedido está pronto!';\n} else if (status === 'Saiu para entrega') {\n  message = '🛵 Seu pedido saiu para entrega! Já já chega por aí.';\n} else if (status === 'Finalizados') {\n  message = '✅ Pedido entregue! 😊 De 1 a 5, que nota você dá para seu pedido?';\n} else if (status === 'Cancelados') {\n  message = 'Seu pedido foi cancelado. Se precisar de ajuda, fala com a gente por aqui.';\n}\n\nreturn [{\n  json: {\n    event: String(body.event ?? ''),\n    company_id: String(body.company_id ?? ''),\n    company_name: String(body.company_name ?? ''),\n    company_instagram: String(body.company_instagram ?? ''),\n    instance_name: instance,\n    order_id: String(body.order_id ?? ''),\n    customer_id: String(body.customer_id ?? ''),\n    client_name: String(body.client_name ?? ''),\n    client_phone: phone,\n    reply_jid: phone ? `${phone}@s.whatsapp.net` : '',\n    status,\n    previous_status: String(body.previous_status ?? ''),\n    message,\n    notify: Boolean(\n      body.event === 'ORDER_STATUS_CHANGED' &&\n      body.company_id &&\n      body.order_id &&\n      instance &&\n      phone &&\n      message\n    ),\n    is_finalized: status === 'Finalizados'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -650,
+        300
+      ],
+      "id": "56c99dd4-a53e-443c-b603-bfbd69a4aeb2",
+      "name": "Normalizar status do pedido"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "status_sent",
+        "key": "=arles:order_status_sent:{{ $('Normalizar status do pedido').item.json.order_id }}:{{ $('Normalizar status do pedido').item.json.status }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        300
+      ],
+      "id": "459d569d-376d-4035-9bdc-a9f4b192de50",
+      "name": "Verificar status já notificado",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const n = $('Normalizar status do pedido').first().json;\nconst already = String($json.status_sent ?? '').trim();\nreturn [{json:{can_notify:n.notify === true && !already}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -150,
+        300
+      ],
+      "id": "a3da13c5-1305-4ba8-97d3-dfb27cc27771",
+      "name": "Validar notificação"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2edb977a-dccd-4e21-971e-1b09ae3f003a",
+              "leftValue": "={{ $json.can_notify }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        100,
+        300
+      ],
+      "id": "79957428-dd49-44be-84cf-19f3200933a9",
+      "name": "Pode notificar?"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:order_status_sent:{{ $('Normalizar status do pedido').item.json.order_id }}:{{ $('Normalizar status do pedido').item.json.status }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 604800
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        350,
+        180
+      ],
+      "id": "dcc105cb-5802-4d2b-9204-3015fda907e6",
+      "name": "Marcar status notificado",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:ai_sending:{{ $('Normalizar status do pedido').item.json.company_id }}:{{ $('Normalizar status do pedido').item.json.client_phone }}",
+        "value": "true",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 10
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        600,
+        180
+      ],
+      "id": "dcbf17f7-c26b-4da0-b46a-60f9e72d3f1f",
+      "name": "Marcar envio do sistema",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Normalizar status do pedido').item.json.instance_name }}",
+        "remoteJid": "={{ $('Normalizar status do pedido').item.json.reply_jid }}",
+        "messageText": "={{ $('Normalizar status do pedido').item.json.message }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        850,
+        180
+      ],
+      "id": "7f78cd21-fc56-44ea-992f-8956e8233182",
+      "name": "Enviar atualização do pedido",
+      "credentials": {
+        "evolutionApi": {
+          "id": "lrqGb4IO6pEMHpzT",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0d4cb0f0-affc-4ec9-9afc-d34f1465e4ab",
+              "leftValue": "={{ $('Normalizar status do pedido').item.json.is_finalized }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1100,
+        180
+      ],
+      "id": "bb5a5fdf-605f-411a-a37b-5a042fe204c3",
+      "name": "Pedido entregue?"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=arles:paused:{{ $('Normalizar status do pedido').item.json.company_id }}:{{ $('Normalizar status do pedido').item.json.client_phone }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1350,
+        80
+      ],
+      "id": "256d2853-0cde-4767-8cf5-2eae376cba10",
+      "name": "Liberar conversa para avaliação",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=arles:awaiting_review:{{ $('Normalizar status do pedido').item.json.company_id }}:{{ $('Normalizar status do pedido').item.json.client_phone }}",
+        "value": "={{ JSON.stringify({ order_id: $('Normalizar status do pedido').item.json.order_id, customer_id: $('Normalizar status do pedido').item.json.customer_id, client_name: $('Normalizar status do pedido').item.json.client_name, company_name: $('Normalizar status do pedido').item.json.company_name, company_instagram: $('Normalizar status do pedido').item.json.company_instagram }) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 604800
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        80
+      ],
+      "id": "ecce5ec4-78c3-4917-aa4f-f42443ad6c83",
+      "name": "Aguardar avaliação",
+      "credentials": {
+        "redis": {
+          "id": "wWBbIH3Ezay22tA8",
+          "name": "VPS"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        300
+      ],
+      "id": "f4745645-a3f3-4adf-baab-316c8fc631da",
+      "name": "Fim pós-venda"
+    },
+    {
+      "parameters": {
+        "content": "ARLES DELIVERY — PÓS-VENDA\n\nRecebe mudanças de status do app:\n• Em preparo\n• Pronto (suporte futuro)\n• Saiu para entrega\n• Finalizados → pede nota 1–5\n• Cancelados\n\nEm Finalizados, libera a conversa e grava no Redis que está aguardando avaliação.\nO AGENT V2 captura a nota e salva em delivery_reviews.\n\nNetlify:\nN8N_ORDER_EVENTS_WEBHOOK_URL = Production URL deste webhook.",
+        "height": 300,
+        "width": 1100,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -900,
+        -40
+      ],
+      "id": "9fac1869-4700-449c-8e0e-39ec61d851ef",
+      "name": "SETUP PÓS-VENDA"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Pós-venda": {
+      "main": [
+        [
+          {
+            "node": "Normalizar status do pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar status do pedido": {
+      "main": [
+        [
+          {
+            "node": "Verificar status já notificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar status já notificado": {
+      "main": [
+        [
+          {
+            "node": "Validar notificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar notificação": {
+      "main": [
+        [
+          {
+            "node": "Pode notificar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pode notificar?": {
+      "main": [
+        [
+          {
+            "node": "Marcar envio do sistema",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim pós-venda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar status notificado": {
+      "main": [
+        [
+          {
+            "node": "Pedido entregue?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar envio do sistema": {
+      "main": [
+        [
+          {
+            "node": "Enviar atualização do pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar atualização do pedido": {
+      "main": [
+        [
+          {
+            "node": "Marcar status notificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedido entregue?": {
+      "main": [
+        [
+          {
+            "node": "Liberar conversa para avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim pós-venda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Liberar conversa para avaliação": {
+      "main": [
+        [
+          {
+            "node": "Aguardar avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar avaliação": {
+      "main": [
+        [
+          {
+            "node": "Fim pós-venda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "2621a3d1-8c40-4100-af36-cb9b3e28fc37",
+  "tags": []
+}
