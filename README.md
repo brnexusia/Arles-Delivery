@@ -1,4 +1,4 @@
-# Arles Delivery v2.0.0
+# Arles Delivery v2.1.0
 
 Painel web do Arles Delivery. O projeto reúne cadastro e login, onboarding,
 dashboard, pedidos, clientes, cardápio, conexão do WhatsApp, importação de
@@ -31,6 +31,16 @@ de serviço. As chamadas privilegiadas passam pelas Netlify Functions.
 - `sql`: migrations e correções históricas do painel;
 - `automation`: último agente n8n v3.2, pós-venda e ajuste Pix preservados;
 - `public`: PWA, ícones, manifest e service worker.
+
+## Arles Admin
+
+O painel administrativo está disponível em `/adm`. Ele é somente leitura e
+mostra usuários, empresas, verticais, assinaturas, receita, uso de contatos e
+situação do WhatsApp. O navegador não acessa PostgreSQL ou Supabase diretamente:
+uma Function valida a sessão de administrador e consulta a API protegida do Core.
+
+O login usa a mesma tela `/login`. Contas com papel `admin` são encaminhadas
+automaticamente para `/adm`; usuários comuns continuam no painel Delivery.
 
 ## Atualizações incorporadas
 
@@ -74,7 +84,7 @@ Esse build gera `dist` e a função SSR interna em `.netlify/functions-internal`
 ## Deploy no Netlify
 
 1. Configure as variáveis de `.env.example` no ambiente do site.
-2. Confirme que o Arles Core v2.0.0 já está implantado e que a migration `006_vertical_engine.sql` foi aplicada.
+2. Confirme que o Arles Core v2.1.0 já está implantado e que as migrations até `007_admin_dashboard.sql` foram aplicadas.
 3. Faça o deploy deste repositório.
 4. Teste cadastro, onboarding, logout e login.
 5. Confirme que `auth-login` retorna `200` e que as chamadas seguintes de

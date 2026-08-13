@@ -40,6 +40,24 @@ function normalizeSubscription(
     sub?.created ??
     null;
 
+  const monthlyPriceCents = (sub?.items?.data || []).reduce(
+    (total: number, subscriptionItem: any) => {
+      const price = subscriptionItem?.price;
+      const unitAmount = Number(price?.unit_amount);
+      const quantity = Number(subscriptionItem?.quantity || 1);
+      const count = Math.max(1, Number(price?.recurring?.interval_count || 1));
+      if (!Number.isFinite(unitAmount)) return total;
+
+      const interval = price?.recurring?.interval;
+      const amount = unitAmount * quantity;
+      if (interval === "year") return total + Math.round(amount / (12 * count));
+      if (interval === "week") return total + Math.round((amount * 52) / (12 * count));
+      if (interval === "day") return total + Math.round((amount * 365) / (12 * count));
+      return total + Math.round(amount / count);
+    },
+    0,
+  );
+
   return {
     event_id: event.id,
     event_type: event.type,
@@ -54,6 +72,7 @@ function normalizeSubscription(
     subscription_id: sub?.id || null,
     customer_id: customer,
     price_id: item?.price?.id || null,
+    monthly_price_cents: monthlyPriceCents || null,
     stripe_status: sub?.status || null,
     current_period_end:
       periodEndSeconds
@@ -134,6 +153,14 @@ export default async function handler(req: Request, _context: Context) {
           event.type === "invoice.paid"
             ? "active"
             : "past_due";
+        if (event.type === "invoice.paid") {
+          payload.invoice_id = invoice.id || null;
+          payload.amount_paid_cents = Number(invoice.amount_paid || 0);
+          payload.currency = invoice.currency || "brl";
+          payload.paid_at = invoice.status_transitions?.paid_at
+            ? new Date(Number(invoice.status_transitions.paid_at) * 1000).toISOString()
+            : new Date(event.created * 1000).toISOString();
+        }
         await forward(payload);
         break;
       }
