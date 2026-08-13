@@ -1,16 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import {
-  CalendarDays,
-  Crown,
-  Repeat2,
-  Activity,
-  LogOut,
-  UserRound,
-  RefreshCw,
-} from "lucide-react";
+import { CalendarDays, Crown, Repeat2, Activity, LogOut, UserRound, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Filters } from "@/components/dashboard/Filters";
@@ -28,7 +19,7 @@ import { FrequencyDetail } from "@/components/dashboard/FrequencyDetail";
 import { Agenda } from "@/components/dashboard/Agenda";
 import { Configuracoes } from "@/components/dashboard/Configuracoes";
 import { CustomMetrics } from "@/components/dashboard/CustomMetrics";
-import { DeliveryApp } from "@/components/delivery/DeliveryApp";
+import { resolveModuleComponent } from "@/platform/module-registry";
 
 import {
   computeMetrics,
@@ -43,10 +34,7 @@ import {
   currentMonthRange,
   type Dataset,
 } from "@/lib/data";
-import { getSheetDataset } from "@/lib/sheet.functions";
 import { useAuth } from "@/lib/auth";
-
-
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -86,11 +74,21 @@ function DashboardPage() {
     );
   }
 
-  if (user.has_delivery) {
-    return <DeliveryApp />;
+  const ModuleComponent = resolveModuleComponent(user.modules);
+  if (ModuleComponent) {
+    return <ModuleComponent />;
   }
 
-  return <Dashboard company={user.company} userName={user.name} hasCalendar={!!user.has_calendar} hasServices={!!user.has_services} hasCustomMetrics={!!user.has_custom_metrics} onSignOut={signOut} />;
+  return (
+    <Dashboard
+      company={user.company}
+      userName={user.name}
+      hasCalendar={!!user.has_calendar}
+      hasServices={!!user.has_services}
+      hasCustomMetrics={!!user.has_custom_metrics}
+      onSignOut={signOut}
+    />
+  );
 }
 
 function Dashboard({
@@ -108,11 +106,18 @@ function Dashboard({
   hasCustomMetrics: boolean;
   onSignOut: () => void;
 }) {
-  // Dados ao vivo da planilha: atualização automática a cada 60s + botão manual.
-  const fetchSheet = useServerFn(getSheetDataset);
+  // Compatibilidade do dashboard legado. A função valida a sessão e aplica o
+  // tenant no servidor antes de devolver qualquer registro ao navegador.
   const query = useQuery<Dataset>({
-    queryKey: ["sheet-dataset"],
-    queryFn: async () => toDataset(await fetchSheet()),
+    queryKey: ["legacy-metrics", company],
+    queryFn: async () => {
+      const response = await fetch("/.netlify/functions/legacy-metrics", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Falha ao carregar métricas do tenant.");
+      return toDataset(await response.json());
+    },
     initialData: staticDataset,
     initialDataUpdatedAt: 0,
     refetchInterval: 60_000,
@@ -134,8 +139,9 @@ function Dashboard({
   const [endRaw, setEnd] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [freqBucket, setFreqBucket] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"metrics" | "agenda" | "configuracoes" | "custom_metrics">("metrics");
-
+  const [activeTab, setActiveTab] = useState<
+    "metrics" | "agenda" | "configuracoes" | "custom_metrics"
+  >("metrics");
 
   const defaultRange = useMemo(() => currentMonthRange(), []);
   const start = startRaw ?? defaultRange.start;
@@ -169,7 +175,6 @@ function Dashboard({
   const pm = useMemo(() => computeMetrics(prevRows), [prevRows]);
   const RETURN_TARGET = 20; // referência de taxa de retorno saudável (%)
 
-
   const toggleSeller = (s: string) =>
     setSelected((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
 
@@ -186,7 +191,6 @@ function Dashboard({
       })
     : null;
 
-
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1400px] space-y-6 px-6 py-8">
@@ -197,7 +201,12 @@ function Dashboard({
                 <div className="relative flex items-center">
                   {/* Glow behind logo in dark mode */}
                   <div className="absolute inset-x-0 h-8 top-1/2 -translate-y-1/2 dark:bg-primary/20 blur-xl rounded-full" />
-                  <img src="/logo.png" alt="Arles" className="relative z-10 h-10 w-auto object-contain" style={{ filter: 'var(--logo-filter)' }} />
+                  <img
+                    src="/logo.png"
+                    alt="Arles"
+                    className="relative z-10 h-10 w-auto object-contain"
+                    style={{ filter: "var(--logo-filter)" }}
+                  />
                 </div>
               </h1>
               <p className="text-xs text-muted-foreground">
@@ -293,86 +302,84 @@ function Dashboard({
         ) : (
           <>
             <Filters
-          start={start}
-          end={end}
-          onStart={setStart}
-          onEnd={setEnd}
-          sellers={sellers}
-          selected={selected}
-          onToggleSeller={toggleSeller}
-          onReset={reset}
-        />
+              start={start}
+              end={end}
+              onStart={setStart}
+              onEnd={setEnd}
+              sellers={sellers}
+              selected={selected}
+              onToggleSeller={toggleSeller}
+              onReset={reset}
+            />
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <KpiCard
-            label="Total de Atendimentos"
-            value={m.total.toLocaleString("pt-BR")}
-            hint="Todos os registros do período"
-            icon={Activity}
-            accent="muted"
-            delta={deltaPct(m.total, pm.total)}
-          />
-          <KpiCard
-            label="Clientes Únicos"
-            value={m.uniquePhones.toLocaleString("pt-BR")}
-            hint={`${(m.total / (m.uniquePhones || 1)).toFixed(1)} atendimentos por cliente`}
-            icon={UserRound}
-            accent="muted"
-            delta={deltaPct(m.uniquePhones, pm.uniquePhones)}
-          />
-          <KpiCard
-            label="Média Diária"
-            value={m.dailyAvg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
-            hint={`${m.activeDays} dias com atendimento`}
-            icon={CalendarDays}
-            accent="muted"
-            delta={deltaPct(m.dailyAvg, pm.dailyAvg)}
-          />
-          <KpiCard
-            label="Top Vendedora"
-            value={m.topSeller?.name ?? "—"}
-            hint={
-              m.topSeller
-                ? `${m.topSeller.count.toLocaleString("pt-BR")} contatos no período`
-                : "Sem dados no período"
-            }
-            icon={Crown}
-            accent="muted"
-            delta={
-              m.topSeller && pm.topSeller && m.topSeller.name === pm.topSeller.name
-                ? deltaPct(m.topSeller.count, pm.topSeller.count)
-                : null
-            }
-          />
-          <KpiCard
-            label="Taxa de Retorno"
-            value={`${m.returnRate.toFixed(1)}%`}
-            hint={`${m.returningContacts.toLocaleString("pt-BR")} clientes em mais de uma data · meta ${RETURN_TARGET}%`}
-            icon={Repeat2}
-            accent="muted"
-            valueTone={m.returnRate >= RETURN_TARGET ? "positive" : "negative"}
-            delta={deltaPct(m.returnRate, pm.returnRate)}
-          />
-        </section>
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <KpiCard
+                label="Total de Atendimentos"
+                value={m.total.toLocaleString("pt-BR")}
+                hint="Todos os registros do período"
+                icon={Activity}
+                accent="muted"
+                delta={deltaPct(m.total, pm.total)}
+              />
+              <KpiCard
+                label="Clientes Únicos"
+                value={m.uniquePhones.toLocaleString("pt-BR")}
+                hint={`${(m.total / (m.uniquePhones || 1)).toFixed(1)} atendimentos por cliente`}
+                icon={UserRound}
+                accent="muted"
+                delta={deltaPct(m.uniquePhones, pm.uniquePhones)}
+              />
+              <KpiCard
+                label="Média Diária"
+                value={m.dailyAvg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+                hint={`${m.activeDays} dias com atendimento`}
+                icon={CalendarDays}
+                accent="muted"
+                delta={deltaPct(m.dailyAvg, pm.dailyAvg)}
+              />
+              <KpiCard
+                label="Top Vendedora"
+                value={m.topSeller?.name ?? "—"}
+                hint={
+                  m.topSeller
+                    ? `${m.topSeller.count.toLocaleString("pt-BR")} contatos no período`
+                    : "Sem dados no período"
+                }
+                icon={Crown}
+                accent="muted"
+                delta={
+                  m.topSeller && pm.topSeller && m.topSeller.name === pm.topSeller.name
+                    ? deltaPct(m.topSeller.count, pm.topSeller.count)
+                    : null
+                }
+              />
+              <KpiCard
+                label="Taxa de Retorno"
+                value={`${m.returnRate.toFixed(1)}%`}
+                hint={`${m.returningContacts.toLocaleString("pt-BR")} clientes em mais de uma data · meta ${RETURN_TARGET}%`}
+                icon={Repeat2}
+                accent="muted"
+                valueTone={m.returnRate >= RETURN_TARGET ? "positive" : "negative"}
+                delta={deltaPct(m.returnRate, pm.returnRate)}
+              />
+            </section>
 
-        <VolumeChart data={m.byDate} />
+            <VolumeChart data={m.byDate} />
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          <SellerChart data={m.bySeller} />
-          <WeekdayChart data={m.byWeekday} />
-        </section>
+            <section className="grid gap-4 lg:grid-cols-2">
+              <SellerChart data={m.bySeller} />
+              <WeekdayChart data={m.byWeekday} />
+            </section>
 
-        <HourChart data={m.byHour} />
+            <HourChart data={m.byHour} />
 
-        <FrequencyChart data={m.byFrequency} onSelectBucket={setFreqBucket} />
+            <FrequencyChart data={m.byFrequency} onSelectBucket={setFreqBucket} />
 
-
-        <FrequencyDetail
-          bucket={freqBucket}
-          rows={rows}
-          onOpenChange={(o) => !o && setFreqBucket(null)}
-        />
-
+            <FrequencyDetail
+              bucket={freqBucket}
+              rows={rows}
+              onOpenChange={(o) => !o && setFreqBucket(null)}
+            />
 
             <ContactsTable rows={rows} allRows={companyRows} />
           </>

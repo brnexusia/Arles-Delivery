@@ -1,35 +1,38 @@
 import type { Context } from "@netlify/functions";
 import { engineFetch, engineSession, json } from "../lib/arles-server.mts";
 
-function resolveEnginePath(path: string): string | null {
+export function resolveEnginePath(path: string): string | null {
   const clean = path.replace(/^\/+|\/+$/g, "");
 
   const exact: Record<string, string> = {
-    company: "/internal/panel/company",
-    "onboarding/complete": "/internal/panel/onboarding/complete",
-    orders: "/internal/panel/orders",
-    customers: "/internal/panel/customers",
-    products: "/internal/panel/products",
-    "menu/import": "/internal/panel/menu/import",
-    "menu/analyze": "/internal/panel/menu/analyze",
-    "store-info": "/internal/panel/store-info",
-    settings: "/internal/panel/settings",
-    "menu-assets": "/internal/panel/menu-assets",
-    "whatsapp/status": "/internal/panel/whatsapp/status",
-    "whatsapp/connect": "/internal/panel/whatsapp/connect",
-    "whatsapp/disconnect": "/internal/panel/whatsapp/disconnect",
-    "billing/subscription": "/internal/billing/subscription",
+    company: "/internal/platform/company",
+    capabilities: "/internal/platform/capabilities",
+    onboarding: "/internal/platform/onboarding",
+    "onboarding/complete": "/internal/platform/onboarding/complete",
+    orders: "/internal/verticals/delivery/orders",
+    customers: "/internal/verticals/delivery/customers",
+    products: "/internal/verticals/delivery/products",
+    "menu/import": "/internal/verticals/delivery/menu/import",
+    "menu/analyze": "/internal/verticals/delivery/menu/analyze",
+    "store-info": "/internal/verticals/delivery/store",
+    settings: "/internal/platform/settings",
+    "menu-assets": "/internal/verticals/delivery/menu/assets",
+    "whatsapp/status": "/internal/platform/channels/whatsapp",
+    "whatsapp/connect": "/internal/platform/channels/whatsapp/connect",
+    "whatsapp/disconnect": "/internal/platform/channels/whatsapp/disconnect",
+    "billing/catalog": "/internal/platform/billing/catalog",
+    "billing/subscription": "/internal/platform/billing/subscription",
   };
 
   if (exact[clean]) return exact[clean];
 
   const patterns = [
-    [/^orders\/([0-9a-f-]{36})\/status$/i, "/internal/panel/orders/$1/status"],
-    [/^orders\/([0-9a-f-]{36})\/payment$/i, "/internal/panel/orders/$1/payment"],
-    [/^customers\/([0-9a-f-]{36})$/i, "/internal/panel/customers/$1"],
-    [/^customers\/([0-9a-f-]{36})\/orders$/i, "/internal/panel/customers/$1/orders"],
-    [/^products\/([0-9a-f-]{36})$/i, "/internal/panel/products/$1"],
-    [/^menu\/analyze\/([0-9a-f-]{36})$/i, "/internal/panel/menu/analyze/$1"],
+    [/^orders\/([0-9a-f-]{36})\/status$/i, "/internal/verticals/delivery/orders/$1/status"],
+    [/^orders\/([0-9a-f-]{36})\/payment$/i, "/internal/verticals/delivery/orders/$1/payment"],
+    [/^customers\/([0-9a-f-]{36})$/i, "/internal/verticals/delivery/customers/$1"],
+    [/^customers\/([0-9a-f-]{36})\/orders$/i, "/internal/verticals/delivery/customers/$1/orders"],
+    [/^products\/([0-9a-f-]{36})$/i, "/internal/verticals/delivery/products/$1"],
+    [/^menu\/analyze\/([0-9a-f-]{36})$/i, "/internal/verticals/delivery/menu/analyze/$1"],
   ] as const;
 
   for (const [regex, target] of patterns) {
@@ -62,18 +65,15 @@ export default async function handler(req: Request, context: Context) {
       }
     }
 
-    const companyId = session.user.companyId;
-    const query =
-      req.method === "GET" || req.method === "DELETE"
-        ? `?company_id=${encodeURIComponent(companyId)}`
-        : "";
-
-    const init: RequestInit = { method: req.method };
+    const init: RequestInit = {
+      method: req.method,
+      headers: { "X-Arles-Session": session.token },
+    };
     if (req.method !== "GET" && req.method !== "DELETE") {
-      init.body = JSON.stringify({ ...body, company_id: companyId });
+      init.body = JSON.stringify(body);
     }
 
-    const forwarded = await engineFetch(`${enginePath}${query}`, init);
+    const forwarded = await engineFetch(enginePath, init);
     return json(forwarded.data, forwarded.response.status);
   } catch (error: any) {
     console.error("[ARLES ENGINE PROXY]", error);

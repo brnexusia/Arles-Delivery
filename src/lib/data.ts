@@ -1,5 +1,3 @@
-import raw from "@/data/contacts.json";
-
 export type Contact = {
   phone: string;
   name: string;
@@ -9,12 +7,10 @@ export type Contact = {
   time: string; // HH:MM ("" quando indisponível)
 };
 
-type RawFile = {
+export type RawFile = {
   companies: string[];
   rows: [string, string, string, string, number, (string | undefined)?][];
 };
-
-const file = raw as RawFile;
 
 export type Dataset = { companies: string[]; contacts: Contact[]; fetchedAt: string | null };
 
@@ -34,9 +30,11 @@ export function toDataset(input: RawFile & { fetchedAt?: string }): Dataset {
   };
 }
 
-
-/** Snapshot local usado como fallback enquanto a planilha não responde. */
-export const staticDataset: Dataset = toDataset(file);
+/**
+ * O browser nunca deve carregar snapshots multiempresa. Em indisponibilidade do
+ * backend, a UI apresenta um conjunto vazio em vez de embutir PII no bundle.
+ */
+export const staticDataset: Dataset = { companies: [], contacts: [], fetchedAt: null };
 
 export const companies: string[] = staticDataset.companies;
 
@@ -47,7 +45,6 @@ export const allContacts: Contact[] = staticDataset.contacts;
 export function contactsOf(company: string, source: Contact[] = allContacts): Contact[] {
   return source.filter((c) => c.company === company);
 }
-
 
 export function sellersOf(rows: Contact[]) {
   return Array.from(new Set(rows.map((c) => c.seller))).sort();
@@ -188,7 +185,6 @@ export function deltaPct(current: number, previous: number): number | null {
   return ((current - previous) / previous) * 100;
 }
 
-
 /** Timeline completa de um número dentro da empresa (todos os registros). */
 export function historyOf(rows: Contact[], phone: string) {
   return rows.filter((r) => r.phone === phone).sort((a, b) => a.date.localeCompare(b.date));
@@ -230,4 +226,3 @@ export function clientsByFrequency(rows: Contact[], bucket: number): FrequencyCl
   }
   return out.sort((a, b) => b.days - a.days || b.lastDate.localeCompare(a.lastDate));
 }
-

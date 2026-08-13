@@ -1,31 +1,50 @@
 import { useState, useEffect } from "react";
 import {
-  CreditCard, CheckCircle2, AlertCircle, Clock, ExternalLink,
-  Loader2, XCircle, CalendarClock, Users, Zap, TrendingUp
+  CreditCard,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  ExternalLink,
+  Loader2,
+  XCircle,
+  CalendarClock,
+  Users,
+  Zap,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import { getSubscriptionInfo, planLabel, type SubscriptionInfo } from "@/lib/subscription";
+import {
+  getBillingCatalog,
+  getSubscriptionInfo,
+  planLabel,
+  type BillingPlan,
+  type SubscriptionInfo,
+} from "@/lib/subscription";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 // ── Plan definitions ───────────────────────────────────────────────────────────
 
-type PlanKey = "essential" | "professional" | "scale";
+type PlanKey = string;
 
 interface Plan {
-  key:       PlanKey;
-  name:      string;
-  price:     string;
-  contacts:  number;
-  badge?:    string;
+  key: PlanKey;
+  name: string;
+  priceCents: number;
+  contacts: number;
+  badge?: string;
 }
 
-const PLANS: Plan[] = [
-  { key: "essential",    name: "Essencial",    price: "49,90",  contacts: 360 },
-  { key: "professional", name: "Profissional",  price: "197,00", contacts: 1500, badge: "Mais escolhido" },
-  { key: "scale",        name: "Escala",        price: "297,00", contacts: 3000 },
-];
+function toPlan(plan: BillingPlan, index: number): Plan {
+  return {
+    key: plan.key,
+    name: plan.name,
+    priceCents: plan.priceCents,
+    contacts: plan.contacts,
+    badge: index === 1 ? "Mais escolhido" : undefined,
+  };
+}
 
 const FEATURES = [
   "Atendimento com IA",
@@ -49,7 +68,11 @@ async function startCheckout(planKey: PlanKey): Promise<void> {
 
   const text = await res.text();
   let data: any = {};
-  try { data = JSON.parse(text); } catch { data = { error: text || `HTTP ${res.status}` }; }
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { error: text || `HTTP ${res.status}` };
+  }
 
   if (data.already_subscribed) throw new Error("already_subscribed");
   if (!res.ok || !data.url) throw new Error(data.error || "Não foi possível abrir o checkout.");
@@ -67,7 +90,11 @@ async function openPortal(): Promise<void> {
 
   const text = await res.text();
   let data: any = {};
-  try { data = JSON.parse(text); } catch { data = { error: text || `HTTP ${res.status}` }; }
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { error: text || `HTTP ${res.status}` };
+  }
 
   if (!res.ok || !data.url) throw new Error(data.error || "Não foi possível abrir o portal.");
 
@@ -78,34 +105,62 @@ async function openPortal(): Promise<void> {
 
 function StatusBadge({ status }: { status: SubscriptionInfo["status"] }) {
   const cfg: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-    trial:    { label: "Período gratuito",           cls: "bg-blue-100 text-blue-700",     icon: <Clock className="size-3.5" /> },
-    active:   { label: "Ativo",                      cls: "bg-emerald-100 text-emerald-700", icon: <CheckCircle2 className="size-3.5" /> },
-    past_due: { label: "Problema no pagamento",      cls: "bg-amber-100 text-amber-700",   icon: <AlertCircle className="size-3.5" /> },
-    expired:  { label: "Período encerrado",          cls: "bg-red-100 text-red-700",       icon: <XCircle className="size-3.5" /> },
-    canceled: { label: "Cancelada",                  cls: "bg-zinc-100 text-zinc-600",     icon: <XCircle className="size-3.5" /> },
+    trial: {
+      label: "Período gratuito",
+      cls: "bg-blue-100 text-blue-700",
+      icon: <Clock className="size-3.5" />,
+    },
+    active: {
+      label: "Ativo",
+      cls: "bg-emerald-100 text-emerald-700",
+      icon: <CheckCircle2 className="size-3.5" />,
+    },
+    past_due: {
+      label: "Problema no pagamento",
+      cls: "bg-amber-100 text-amber-700",
+      icon: <AlertCircle className="size-3.5" />,
+    },
+    expired: {
+      label: "Período encerrado",
+      cls: "bg-red-100 text-red-700",
+      icon: <XCircle className="size-3.5" />,
+    },
+    canceled: {
+      label: "Cancelada",
+      cls: "bg-zinc-100 text-zinc-600",
+      icon: <XCircle className="size-3.5" />,
+    },
   };
   const s = cfg[status] ?? cfg.expired;
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${s.cls}`}>
-      {s.icon}{s.label}
+    <span
+      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${s.cls}`}
+    >
+      {s.icon}
+      {s.label}
     </span>
   );
 }
 
 function ContactUsageBar({ used, limit }: { used: number; limit: number }) {
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  const color = pct >= 100 ? "bg-red-500"
-    : pct >= 90 ? "bg-amber-500"
-    : pct >= 80 ? "bg-yellow-400"
-    : "bg-emerald-500";
+  const color =
+    pct >= 100
+      ? "bg-red-500"
+      : pct >= 90
+        ? "bg-amber-500"
+        : pct >= 80
+          ? "bg-yellow-400"
+          : "bg-emerald-500";
 
-  const label = pct >= 100
-    ? "Você atingiu o limite mensal do seu plano."
-    : pct >= 90
-    ? "Seu limite mensal está próximo."
-    : pct >= 80
-    ? `Você já utilizou ${pct}% dos contatos do seu plano.`
-    : null;
+  const label =
+    pct >= 100
+      ? "Você atingiu o limite mensal do seu plano."
+      : pct >= 90
+        ? "Seu limite mensal está próximo."
+        : pct >= 80
+          ? `Você já utilizou ${pct}% dos contatos do seu plano.`
+          : null;
 
   return (
     <div className="space-y-2">
@@ -113,25 +168,40 @@ function ContactUsageBar({ used, limit }: { used: number; limit: number }) {
         <span className="font-medium flex items-center gap-1.5">
           <Users className="size-4 text-muted-foreground" /> Contatos este mês
         </span>
-        <span className="text-muted-foreground">{used.toLocaleString("pt-BR")} / {limit.toLocaleString("pt-BR")}</span>
+        <span className="text-muted-foreground">
+          {used.toLocaleString("pt-BR")} / {limit.toLocaleString("pt-BR")}
+        </span>
       </div>
       <div className="h-2 rounded-full bg-muted overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full rounded-full transition-all ${color}`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
       {label && (
-        <p className={`text-xs font-medium ${pct >= 100 ? "text-red-600" : "text-amber-600"}`}>{label}</p>
+        <p className={`text-xs font-medium ${pct >= 100 ? "text-red-600" : "text-amber-600"}`}>
+          {label}
+        </p>
       )}
     </div>
   );
 }
 
 function PlanCard({
-  plan, loading, onSubscribe,
-}: { plan: Plan; loading: boolean; onSubscribe: (k: PlanKey) => void }) {
+  plan,
+  loading,
+  onSubscribe,
+}: {
+  plan: Plan;
+  loading: boolean;
+  onSubscribe: (k: PlanKey) => void;
+}) {
   return (
-    <div className={`relative rounded-2xl border-2 p-5 bg-card flex flex-col gap-4 ${
-      plan.badge ? "border-primary shadow-md" : "border-border"
-    }`}>
+    <div
+      className={`relative rounded-2xl border-2 p-5 bg-card flex flex-col gap-4 ${
+        plan.badge ? "border-primary shadow-md" : "border-border"
+      }`}
+    >
       {plan.badge && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[11px] font-bold px-3 py-0.5 rounded-full whitespace-nowrap">
           {plan.badge}
@@ -147,7 +217,12 @@ function PlanCard({
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-2xl font-bold">R$ {plan.price}</p>
+          <p className="text-2xl font-bold">
+            {(plan.priceCents / 100).toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })}
+          </p>
           <p className="text-xs text-muted-foreground">/mês</p>
         </div>
       </div>
@@ -159,9 +234,11 @@ function PlanCard({
         className={`w-full ${plan.badge ? "" : "variant-outline"}`}
         variant={plan.badge ? "default" : "outline"}
       >
-        {loading
-          ? <Loader2 className="size-4 animate-spin mr-2" />
-          : <CreditCard className="size-4 mr-2" />}
+        {loading ? (
+          <Loader2 className="size-4 animate-spin mr-2" />
+        ) : (
+          <CreditCard className="size-4 mr-2" />
+        )}
         Assinar {plan.name}
       </Button>
     </div>
@@ -171,12 +248,13 @@ function PlanCard({
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export function Billing() {
-  const { user }                  = useAuth();
-  const [info, setInfo]           = useState<SubscriptionInfo | null>(null);
-  const [loading, setLoading]     = useState(true);
+  const { user } = useAuth();
+  const [info, setInfo] = useState<SubscriptionInfo | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<PlanKey | null>(null);
-  const [portalLoading, setPortalLoading]     = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -188,9 +266,13 @@ export function Billing() {
     const outcome = new URLSearchParams(window.location.search).get("checkout");
 
     const refresh = async () => {
-      const data = await getSubscriptionInfo(user.companyId);
+      const [data, catalog] = await Promise.all([
+        getSubscriptionInfo(user.companyId),
+        getBillingCatalog(),
+      ]);
       if (cancelled) return;
       setInfo(data);
+      setPlans(catalog.map(toPlan));
       setLoading(false);
 
       if (outcome === "success" && data?.status === "active") {
@@ -228,7 +310,7 @@ export function Billing() {
       await startCheckout(planKey);
     } catch (e: any) {
       if (e.message === "already_subscribed") {
-        setError("Você já possui uma assinatura ativa. Use \"Gerenciar assinatura\" abaixo.");
+        setError('Você já possui uma assinatura ativa. Use "Gerenciar assinatura" abaixo.');
       } else {
         setError(e.message);
       }
@@ -260,11 +342,10 @@ export function Billing() {
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
-
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold">Assinatura</h1>
-        <p className="text-muted-foreground text-sm mt-1">Gerencie seu plano do Arles Delivery</p>
+        <p className="text-muted-foreground text-sm mt-1">Gerencie seu plano da Arles Platform</p>
       </div>
 
       {/* Alerts */}
@@ -288,7 +369,6 @@ export function Billing() {
         <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
           <div className="h-2 bg-gradient-to-r from-violet-600 to-fuchsia-500" />
           <div className="p-6 space-y-5">
-
             {/* Header */}
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
@@ -296,7 +376,9 @@ export function Billing() {
                   <Zap className="size-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Plano atual</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                    Plano atual
+                  </p>
                   <h2 className="text-lg font-bold">{planLabel(info?.planKey ?? null)}</h2>
                 </div>
               </div>
@@ -318,7 +400,10 @@ export function Billing() {
             {info?.cancelAtPeriodEnd && (
               <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-3">
                 <CalendarClock className="size-4 shrink-0 mt-0.5" />
-                <span>Sua assinatura foi cancelada e não será renovada. Você mantém acesso até o fim do período pago.</span>
+                <span>
+                  Sua assinatura foi cancelada e não será renovada. Você mantém acesso até o fim do
+                  período pago.
+                </span>
               </div>
             )}
 
@@ -335,9 +420,11 @@ export function Billing() {
               disabled={portalLoading}
               className="w-full h-11"
             >
-              {portalLoading
-                ? <Loader2 className="size-4 animate-spin mr-2" />
-                : <ExternalLink className="size-4 mr-2" />}
+              {portalLoading ? (
+                <Loader2 className="size-4 animate-spin mr-2" />
+              ) : (
+                <ExternalLink className="size-4 mr-2" />
+              )}
               Gerenciar assinatura
             </Button>
             <p className="text-xs text-muted-foreground text-center">
@@ -353,14 +440,18 @@ export function Billing() {
       {status === "past_due" && (
         <div className="rounded-2xl border bg-card shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="font-bold text-lg">Arles Delivery</h2>
+            <h2 className="font-bold text-lg">Arles Platform</h2>
             <StatusBadge status={status} />
           </div>
           <div className="rounded-xl bg-amber-50 border border-amber-100 p-4 flex items-start gap-3">
             <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-800 text-sm">Não conseguimos processar seu pagamento.</p>
-              <p className="text-xs text-amber-700 mt-1">Atualize os dados do cartão para restaurar o acesso ao atendimento automático.</p>
+              <p className="font-semibold text-amber-800 text-sm">
+                Não conseguimos processar seu pagamento.
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                Atualize os dados do cartão para restaurar o acesso ao atendimento automático.
+              </p>
             </div>
           </div>
           <Button
@@ -368,7 +459,11 @@ export function Billing() {
             disabled={portalLoading}
             className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-white"
           >
-            {portalLoading ? <Loader2 className="size-4 animate-spin mr-2" /> : <CreditCard className="size-4 mr-2" />}
+            {portalLoading ? (
+              <Loader2 className="size-4 animate-spin mr-2" />
+            ) : (
+              <CreditCard className="size-4 mr-2" />
+            )}
             Atualizar forma de pagamento
           </Button>
         </div>
@@ -398,10 +493,15 @@ export function Billing() {
                 </div>
                 <div>
                   <p className="font-semibold text-blue-800">
-                    {info!.daysRemaining === 1 ? "1 dia restante" : `${info!.daysRemaining} dias restantes`}
+                    {info!.daysRemaining === 1
+                      ? "1 dia restante"
+                      : `${info!.daysRemaining} dias restantes`}
                   </p>
                   <p className="text-xs text-blue-600 mt-0.5">
-                    Encerra em {info!.trialEndsAt ? format(info!.trialEndsAt, "dd 'de' MMMM", { locale: ptBR }) : "breve"}
+                    Encerra em{" "}
+                    {info!.trialEndsAt
+                      ? format(info!.trialEndsAt, "dd 'de' MMMM", { locale: ptBR })
+                      : "breve"}
                   </p>
                 </div>
               </div>
@@ -414,10 +514,7 @@ export function Billing() {
             <p className="text-sm text-muted-foreground mb-4">
               Assine quando estiver pronto e ative seu plano pelo Stripe.
             </p>
-            <PlanGrid
-              onSubscribe={handleCheckout}
-              loadingPlan={checkoutLoading}
-            />
+            <PlanGrid plans={plans} onSubscribe={handleCheckout} loadingPlan={checkoutLoading} />
           </div>
         </>
       )}
@@ -440,7 +537,7 @@ export function Billing() {
                     : "Seu período gratuito terminou."}
                 </p>
                 <p className="text-xs text-red-700 mt-1">
-                  Continue atendendo seus clientes automaticamente com o Arles Delivery.
+                  Continue usando as automações habilitadas na Arles Platform.
                 </p>
               </div>
             </div>
@@ -449,12 +546,9 @@ export function Billing() {
           <div>
             <h3 className="font-semibold text-base mb-1">Escolha seu plano</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Continue atendendo seus clientes automaticamente com o Arles Delivery.
+              Continue usando as automações habilitadas na Arles Platform.
             </p>
-            <PlanGrid
-              onSubscribe={handleCheckout}
-              loadingPlan={checkoutLoading}
-            />
+            <PlanGrid plans={plans} onSubscribe={handleCheckout} loadingPlan={checkoutLoading} />
           </div>
         </>
       )}
@@ -473,8 +567,8 @@ export function Billing() {
           ))}
         </ul>
         <p className="mt-4 text-xs text-muted-foreground border-t pt-3">
-          A diferença entre os planos é o número de <strong>contatos únicos</strong> atendidos por mês.
-          O mesmo número, mesmo que envie várias mensagens, conta como apenas 1 contato.
+          A diferença entre os planos é o número de <strong>contatos únicos</strong> atendidos por
+          mês. O mesmo número, mesmo que envie várias mensagens, conta como apenas 1 contato.
         </p>
       </div>
 
@@ -488,11 +582,17 @@ export function Billing() {
 // ── Plan grid helper ───────────────────────────────────────────────────────────
 
 function PlanGrid({
-  onSubscribe, loadingPlan,
-}: { onSubscribe: (k: PlanKey) => void; loadingPlan: PlanKey | null }) {
+  plans,
+  onSubscribe,
+  loadingPlan,
+}: {
+  plans: Plan[];
+  onSubscribe: (k: PlanKey) => void;
+  loadingPlan: PlanKey | null;
+}) {
   return (
     <div className="space-y-3">
-      {PLANS.map((plan) => (
+      {plans.map((plan) => (
         <PlanCard
           key={plan.key}
           plan={plan}

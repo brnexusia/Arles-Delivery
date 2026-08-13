@@ -1,20 +1,10 @@
 import type { Context } from "@netlify/functions";
 import Stripe from "stripe";
-import {
-  engineFetch,
-  engineSession,
-  json,
-} from "../lib/arles-server.mts";
+import { engineFetch, engineSession, json } from "../lib/arles-server.mts";
 
 type PlanKey = "essential" | "professional" | "scale";
 
-const PLAN_LIMITS: Record<PlanKey, number> = {
-  essential: 360,
-  professional: 1500,
-  scale: 3000,
-};
-
-function priceFor(plan: PlanKey) {
+function priceFor(plan: string) {
   return {
     essential: process.env.STRIPE_PRICE_ESSENTIAL,
     professional: process.env.STRIPE_PRICE_PROFESSIONAL,
@@ -41,7 +31,14 @@ export default async function handler(req: Request, context: Context) {
   }
 
   const planKey = String(body.plan_key || "").toLowerCase() as PlanKey;
-  if (!(planKey in PLAN_LIMITS)) {
+  const catalog = await engineFetch("/internal/platform/billing/catalog", {
+    method: "GET",
+    headers: { "X-Arles-Session": auth.token },
+  });
+  const plan = Array.isArray(catalog.data?.data)
+    ? catalog.data.data.find((item: any) => item.plan_key === planKey)
+    : null;
+  if (!catalog.response.ok || !plan) {
     return json({ error: "Invalid plan_key" }, 400);
   }
 
@@ -51,10 +48,10 @@ export default async function handler(req: Request, context: Context) {
   }
 
   const companyId = auth.user.companyId;
-  const billingContext = await engineFetch(
-    `/internal/billing/context?company_id=${encodeURIComponent(companyId)}`,
-    { method: "GET" },
-  );
+  const billingContext = await engineFetch("/internal/platform/billing/context", {
+    method: "GET",
+    headers: { "X-Arles-Session": auth.token },
+  });
 
   if (!billingContext.response.ok || !billingContext.data?.data) {
     return json(billingContext.data, billingContext.response.status);
@@ -62,10 +59,7 @@ export default async function handler(req: Request, context: Context) {
 
   const company = billingContext.data.data;
 
-  if (
-    company.subscription_status === "active" &&
-    company.stripe_subscription_id
-  ) {
+  if (company.subscription_status === "active" && company.stripe_subscription_id) {
     return json({ already_subscribed: true }, 409);
   }
 
@@ -91,10 +85,10 @@ export default async function handler(req: Request, context: Context) {
       });
       customerId = customer.id;
 
-      const saved = await engineFetch("/internal/billing/customer", {
+      const saved = await engineFetch("/internal/platform/billing/customer", {
         method: "POST",
+        headers: { "X-Arles-Session": auth.token },
         body: JSON.stringify({
-          company_id: companyId,
           customer_id: customerId,
         }),
       });

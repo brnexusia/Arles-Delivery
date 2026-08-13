@@ -1,11 +1,6 @@
 import { engineData } from "@/lib/arles-engine";
 
-export type SubscriptionStatus =
-  | "trial"
-  | "active"
-  | "expired"
-  | "past_due"
-  | "canceled";
+export type SubscriptionStatus = "trial" | "active" | "expired" | "past_due" | "canceled";
 
 export interface SubscriptionInfo {
   status: SubscriptionStatus;
@@ -31,22 +26,37 @@ const PLAN_LABELS: Record<string, string> = {
   scale: "Escala",
 };
 
+export type BillingPlan = {
+  key: string;
+  name: string;
+  priceCents: number;
+  currency: string;
+  contacts: number;
+};
+
+export async function getBillingCatalog(): Promise<BillingPlan[]> {
+  const rows = await engineData<any[]>("billing/catalog");
+  return rows.map((row) => ({
+    key: String(row.plan_key),
+    name: String(row.display_name),
+    priceCents: Number(row.display_price_cents),
+    currency: String(row.currency || "BRL"),
+    contacts: Number(row.contact_limit),
+  }));
+}
+
 export function planLabel(key: string | null): string {
   return key ? (PLAN_LABELS[key] ?? key) : "—";
 }
 
-export async function getSubscriptionInfo(
-  _companyId?: string,
-): Promise<SubscriptionInfo | null> {
+export async function getSubscriptionInfo(_companyId?: string): Promise<SubscriptionInfo | null> {
   try {
     const raw = await engineData<any>("billing/subscription");
 
     return {
       status: raw.status as SubscriptionStatus,
       trialEndsAt: raw.trialEndsAt ? new Date(raw.trialEndsAt) : null,
-      subscriptionEndsAt: raw.subscriptionEndsAt
-        ? new Date(raw.subscriptionEndsAt)
-        : null,
+      subscriptionEndsAt: raw.subscriptionEndsAt ? new Date(raw.subscriptionEndsAt) : null,
       daysRemaining: raw.daysRemaining ?? null,
       hasAccess: raw.hasAccess === true,
       isExpired: raw.isExpired === true,

@@ -1,4 +1,4 @@
-// src/components/delivery/TrialBanner.tsx
+// Shared Arles Platform billing status banner.
 import { AlertTriangle, Clock, X, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -15,7 +15,11 @@ export function TrialBanner({ subscription }: TrialBannerProps) {
   if (subscription.status === "active") return null;
 
   // Expired trial — full blocking screen
-  if (subscription.isExpired || subscription.status === "canceled" || subscription.status === "past_due") {
+  if (
+    subscription.isExpired ||
+    subscription.status === "canceled" ||
+    subscription.status === "past_due"
+  ) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4">
         <div className="max-w-md w-full text-center space-y-6">
@@ -25,13 +29,15 @@ export function TrialBanner({ subscription }: TrialBannerProps) {
           <div>
             <h2 className="text-2xl font-bold">Seu período grátis terminou.</h2>
             <p className="text-muted-foreground mt-2">
-              Assine o Arles Delivery para continuar atendendo seus clientes automaticamente.
+              Assine a Arles Platform para continuar usando suas automações.
             </p>
           </div>
           <Button
             size="lg"
             className="w-full text-base font-semibold"
-            onClick={() => { window.location.href = "/?tab=billing"; }}
+            onClick={() => {
+              window.location.href = "/?tab=billing";
+            }}
           >
             Assinar agora <ExternalLink className="ml-2 size-4" />
           </Button>
@@ -58,12 +64,16 @@ export function TrialBanner({ subscription }: TrialBannerProps) {
         <div className="flex items-center gap-2">
           <Clock className="size-4 shrink-0" />
           {isExpiring ? (
-            <span>Seu teste grátis termina em breve. <strong>Assine agora</strong> para não perder o atendimento.</span>
+            <span>
+              Seu teste grátis termina em breve. <strong>Assine agora</strong> para não perder o
+              atendimento.
+            </span>
           ) : (
             <span>
               Você está no período grátis.{" "}
               <strong>
-                Restam {subscription.daysRemaining} {subscription.daysRemaining === 1 ? "dia" : "dias"}.
+                Restam {subscription.daysRemaining}{" "}
+                {subscription.daysRemaining === 1 ? "dia" : "dias"}.
               </strong>
             </span>
           )}
@@ -73,7 +83,9 @@ export function TrialBanner({ subscription }: TrialBannerProps) {
             size="sm"
             variant="outline"
             className="h-7 text-xs"
-            onClick={() => { window.location.href = "/?tab=billing"; }}
+            onClick={() => {
+              window.location.href = "/?tab=billing";
+            }}
           >
             Assinar
           </Button>
