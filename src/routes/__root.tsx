@@ -78,20 +78,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Arles Platform" },
-      { name: "description", content: "Painel modular da Arles Platform." },
+      { title: "Arles Delivery" },
+      { name: "description", content: "Painel do Arles Delivery para atendimento, pedidos, clientes e cardápio." },
       { name: "author", content: "Arles" },
-      { property: "og:title", content: "Arles Platform" },
-      { property: "og:description", content: "Painel modular da Arles Platform." },
+      { property: "og:title", content: "Arles Delivery" },
+      { property: "og:description", content: "Painel do Arles Delivery para atendimento, pedidos, clientes e cardápio." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Arles" },
-      { name: "twitter:title", content: "Arles Platform" },
-      { name: "twitter:description", content: "Painel modular da Arles Platform." },
+      { name: "twitter:title", content: "Arles Delivery" },
+      { name: "twitter:description", content: "Painel do Arles Delivery para atendimento, pedidos, clientes e cardápio." },
       { property: "og:image", content: "/logo.png" },
       { name: "twitter:image", content: "/logo.png" },
       { name: "theme-color", content: "#f7f9fc" },
-      { name: "application-name", content: "Arles Platform" },
+      { name: "application-name", content: "Arles Delivery" },
       { name: "format-detection", content: "telephone=no" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "mobile-web-app-capable", content: "yes" },
@@ -132,9 +132,9 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch((err) => {
-        console.error("Service Worker registration failed:", err);
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        console.error('Service Worker registration failed:', err);
       });
     }
   }, []);

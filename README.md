@@ -1,4 +1,4 @@
-# Arles Delivery v1.5.5
+# Arles Delivery v2.0.0
 
 Painel web do Arles Delivery. O projeto reúne cadastro e login, onboarding,
 dashboard, pedidos, clientes, cardápio, conexão do WhatsApp, importação de
@@ -11,11 +11,12 @@ até a correção de sessão `v1.5.5` de 11/08/2026.
 
 - React 19 + TanStack Router/Start + Vite;
 - Netlify para o painel e as Functions;
-- Arles Core/PostgreSQL para autenticação, sessão, tenants e dados operacionais;
+- Arles Core/PostgreSQL para autenticação, sessão, tenants e infraestrutura;
 - Stripe para checkout, portal e webhooks de assinatura;
 - Evolution API para WhatsApp;
 - Supabase mantido apenas nas funções legadas que ainda o utilizam;
-- Arles Core para a importação assíncrona de cardápio com IA.
+- módulo Delivery do Arles Core para pedidos, cardápio e importação com IA;
+- acesso liberado pelas capabilities `delivery.*` retornadas na sessão.
 
 O navegador nunca recebe `ARLES_ENGINE_INTERNAL_KEY`, chaves Stripe ou chaves
 de serviço. As chamadas privilegiadas passam pelas Netlify Functions.
@@ -73,7 +74,7 @@ Esse build gera `dist` e a função SSR interna em `.netlify/functions-internal`
 ## Deploy no Netlify
 
 1. Configure as variáveis de `.env.example` no ambiente do site.
-2. Confirme que o Arles Core v1.5.5 já está implantado.
+2. Confirme que o Arles Core v2.0.0 já está implantado e que a migration `006_vertical_engine.sql` foi aplicada.
 3. Faça o deploy deste repositório.
 4. Teste cadastro, onboarding, logout e login.
 5. Confirme que `auth-login` retorna `200` e que as chamadas seguintes de

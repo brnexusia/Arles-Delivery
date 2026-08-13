@@ -1,27 +1,24 @@
 import type { Context } from "@netlify/functions";
 import { engineFetch, engineSession, json } from "../lib/arles-server.mts";
 
-export function resolveEnginePath(path: string): string | null {
+function resolveEnginePath(path: string): string | null {
   const clean = path.replace(/^\/+|\/+$/g, "");
 
   const exact: Record<string, string> = {
-    company: "/internal/platform/company",
-    capabilities: "/internal/platform/capabilities",
-    onboarding: "/internal/platform/onboarding",
-    "onboarding/complete": "/internal/platform/onboarding/complete",
+    company: "/internal/verticals/delivery/company",
+    "onboarding/complete": "/internal/verticals/delivery/onboarding/complete",
     orders: "/internal/verticals/delivery/orders",
     customers: "/internal/verticals/delivery/customers",
     products: "/internal/verticals/delivery/products",
     "menu/import": "/internal/verticals/delivery/menu/import",
     "menu/analyze": "/internal/verticals/delivery/menu/analyze",
-    "store-info": "/internal/verticals/delivery/store",
-    settings: "/internal/platform/settings",
-    "menu-assets": "/internal/verticals/delivery/menu/assets",
-    "whatsapp/status": "/internal/platform/channels/whatsapp",
-    "whatsapp/connect": "/internal/platform/channels/whatsapp/connect",
-    "whatsapp/disconnect": "/internal/platform/channels/whatsapp/disconnect",
-    "billing/catalog": "/internal/platform/billing/catalog",
-    "billing/subscription": "/internal/platform/billing/subscription",
+    "store-info": "/internal/verticals/delivery/store-info",
+    settings: "/internal/verticals/delivery/settings",
+    "menu-assets": "/internal/verticals/delivery/menu-assets",
+    "whatsapp/status": "/internal/verticals/delivery/whatsapp/status",
+    "whatsapp/connect": "/internal/verticals/delivery/whatsapp/connect",
+    "whatsapp/disconnect": "/internal/verticals/delivery/whatsapp/disconnect",
+    "billing/subscription": "/internal/billing/subscription",
   };
 
   if (exact[clean]) return exact[clean];
@@ -65,15 +62,18 @@ export default async function handler(req: Request, context: Context) {
       }
     }
 
-    const init: RequestInit = {
-      method: req.method,
-      headers: { "X-Arles-Session": session.token },
-    };
+    const companyId = session.user.companyId;
+    const query =
+      req.method === "GET" || req.method === "DELETE"
+        ? `?company_id=${encodeURIComponent(companyId)}`
+        : "";
+
+    const init: RequestInit = { method: req.method };
     if (req.method !== "GET" && req.method !== "DELETE") {
-      init.body = JSON.stringify(body);
+      init.body = JSON.stringify({ ...body, company_id: companyId });
     }
 
-    const forwarded = await engineFetch(enginePath, init);
+    const forwarded = await engineFetch(`${enginePath}${query}`, init);
     return json(forwarded.data, forwarded.response.status);
   } catch (error: any) {
     console.error("[ARLES ENGINE PROXY]", error);

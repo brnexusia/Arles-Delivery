@@ -9,42 +9,18 @@ import {
   type ReactNode,
 } from "react";
 
-export type PlatformModule = {
-  key: string;
-  name: string;
-  capability: string;
-  ui?: {
-    entry: string;
-    navigation: Array<{ key: string; label: string; icon?: string; order: number }>;
-  } | null;
-  onboardingSteps?: Array<{
-    key: string;
-    scope: "platform" | "capability";
-    title: string;
-    capabilityKey?: string;
-    order: number;
-  }>;
-};
-
-export type Session = {
+type Session = {
   id?: string;
   username: string;
   name: string;
   company: string;
   companyId: string;
   role?: "admin" | "user";
-  capabilities: Record<
-    string,
-    {
-      status: "active" | "inactive" | "suspended";
-      configuration: Record<string, unknown>;
-    }
-  >;
-  modules: PlatformModule[];
+  verticals: string[];
+  capabilities: string[];
   has_calendar?: boolean;
   has_services?: boolean;
   has_custom_metrics?: boolean;
-  has_delivery?: boolean;
 };
 
 type SignUpInput = {
@@ -62,7 +38,9 @@ type AuthValue = {
     email: string,
     password: string,
   ) => Promise<{ ok: boolean; error?: string; role?: "admin" | "user" }>;
-  signUp: (input: SignUpInput) => Promise<{ ok: boolean; error?: string; role?: "admin" | "user" }>;
+  signUp: (
+    input: SignUpInput,
+  ) => Promise<{ ok: boolean; error?: string; role?: "admin" | "user" }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<Session | null>;
 };
@@ -97,13 +75,8 @@ function clearClientSession() {
   ].join("; ");
 }
 
-export function normalizeUser(raw: any): Session | null {
+function normalizeUser(raw: any): Session | null {
   if (!raw) return null;
-  const capabilities =
-    raw.capabilities && typeof raw.capabilities === "object" ? raw.capabilities : {};
-  const modules = Array.isArray(raw.modules) ? raw.modules : [];
-  const legacyDelivery = raw.has_delivery !== false;
-
   return {
     id: raw.id,
     username: raw.email || raw.username || "",
@@ -111,23 +84,13 @@ export function normalizeUser(raw: any): Session | null {
     company: raw.company || "Arles",
     companyId: raw.companyId || raw.company_id || "",
     role: raw.role === "admin" ? "admin" : "user",
-    capabilities,
-    modules:
-      modules.length || !legacyDelivery
-        ? modules
-        : [
-            {
-              key: "delivery",
-              name: "Arles Delivery",
-              capability: "vertical.delivery",
-              ui: null,
-              onboardingSteps: [],
-            },
-          ],
+    verticals: Array.isArray(raw.verticals) ? raw.verticals.map(String) : [],
+    capabilities: Array.isArray(raw.capabilities)
+      ? raw.capabilities.map(String)
+      : [],
     has_calendar: raw.has_calendar === true,
     has_services: raw.has_services === true,
     has_custom_metrics: raw.has_custom_metrics === true,
-    has_delivery: capabilities["vertical.delivery"]?.status === "active" || legacyDelivery,
   };
 }
 

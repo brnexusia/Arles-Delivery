@@ -24,6 +24,7 @@ export default async function handler(req: Request, _context: Context) {
       email: String(body.email || "").trim().toLowerCase(),
       phone: String(body.phone || ""),
       password: String(body.password || ""),
+      vertical_id: "delivery",
     }),
   });
 

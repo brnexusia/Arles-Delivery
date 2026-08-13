@@ -11,8 +11,8 @@ import { useAuth } from "@/lib/auth";
 export const Route = createFileRoute("/register")({
   head: () => ({
     meta: [
-      { title: "Criar Conta | Arles Platform" },
-      { name: "description", content: "Crie sua conta na Arles Platform." },
+      { title: "Criar Conta | Arles Delivery" },
+      { name: "description", content: "Crie sua conta no Arles Delivery." },
     ],
   }),
   component: RegisterPage,
@@ -30,7 +30,7 @@ function RegisterPage() {
     confirmPassword: "",
     acceptedTerms: false,
   });
-
+  
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -84,6 +84,7 @@ function RegisterPage() {
     }
   };
 
+
   return (
     <main className="login-bg relative grid min-h-screen place-items-center px-4 py-10">
       <div className="relative w-full max-w-md space-y-6">
@@ -93,17 +94,10 @@ function RegisterPage() {
           </div>
           <div className="relative flex justify-center mb-4 mt-4">
             <div className="absolute inset-x-0 h-12 top-1/2 -translate-y-1/2 dark:bg-primary/20 blur-2xl rounded-full" />
-            <img
-              src="/logo.png"
-              alt="Arles"
-              className="relative z-10 h-16 w-auto object-contain"
-              style={{ filter: "var(--logo-filter)" }}
-            />
+            <img src="/logo.png" alt="Arles" className="relative z-10 h-16 w-auto object-contain" style={{ filter: 'var(--logo-filter)' }} />
           </div>
           <h1 className="text-2xl font-bold tracking-tight mt-2">Crie sua conta</h1>
-          <p className="text-sm text-muted-foreground text-center">
-            Comece a configurar seu delivery em poucos minutos.
-          </p>
+          <p className="text-sm text-muted-foreground text-center">Comece a configurar seu delivery em poucos minutos.</p>
         </div>
 
         <Card className="p-6 shadow-[var(--shadow-card)]">
@@ -114,10 +108,7 @@ function RegisterPage() {
                 <Input
                   id="name"
                   value={form.name}
-                  onChange={(e) => {
-                    setForm({ ...form, name: e.target.value });
-                    setError(null);
-                  }}
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setError(null); }}
                   placeholder="João Silva"
                 />
               </div>
@@ -126,10 +117,7 @@ function RegisterPage() {
                 <Input
                   id="companyName"
                   value={form.companyName}
-                  onChange={(e) => {
-                    setForm({ ...form, companyName: e.target.value });
-                    setError(null);
-                  }}
+                  onChange={(e) => { setForm({ ...form, companyName: e.target.value }); setError(null); }}
                   placeholder="Pizzaria Suprema"
                 />
               </div>
@@ -141,10 +129,7 @@ function RegisterPage() {
                 id="email"
                 type="email"
                 value={form.email}
-                onChange={(e) => {
-                  setForm({ ...form, email: e.target.value });
-                  setError(null);
-                }}
+                onChange={(e) => { setForm({ ...form, email: e.target.value }); setError(null); }}
                 placeholder="contato@empresa.com.br"
               />
             </div>
@@ -155,10 +140,7 @@ function RegisterPage() {
                 id="phone"
                 type="tel"
                 value={form.phone}
-                onChange={(e) => {
-                  setForm({ ...form, phone: e.target.value });
-                  setError(null);
-                }}
+                onChange={(e) => { setForm({ ...form, phone: e.target.value }); setError(null); }}
                 placeholder="(11) 99999-9999"
               />
             </div>
@@ -171,10 +153,7 @@ function RegisterPage() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={form.password}
-                    onChange={(e) => {
-                      setForm({ ...form, password: e.target.value });
-                      setError(null);
-                    }}
+                    onChange={(e) => { setForm({ ...form, password: e.target.value }); setError(null); }}
                     placeholder="••••••••"
                   />
                   <button
@@ -192,10 +171,7 @@ function RegisterPage() {
                   id="confirmPassword"
                   type={showPassword ? "text" : "password"}
                   value={form.confirmPassword}
-                  onChange={(e) => {
-                    setForm({ ...form, confirmPassword: e.target.value });
-                    setError(null);
-                  }}
+                  onChange={(e) => { setForm({ ...form, confirmPassword: e.target.value }); setError(null); }}
                   placeholder="••••••••"
                 />
               </div>
@@ -215,22 +191,15 @@ function RegisterPage() {
             </div>
 
             {error && <p className="text-sm text-destructive font-medium">{error}</p>}
-
+            
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="size-4 mr-2 animate-spin" />
-              ) : (
-                <Store className="size-4 mr-2" />
-              )}
+              {isLoading ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Store className="size-4 mr-2" />}
               Criar minha conta
             </Button>
 
             <div className="pt-2 text-center text-sm">
               <span className="text-muted-foreground">Já possui uma conta? </span>
-              <Link
-                to="/login"
-                className="text-primary hover:underline font-medium inline-flex items-center"
-              >
+              <Link to="/login" className="text-primary hover:underline font-medium inline-flex items-center">
                 Entrar <ArrowRight className="size-3 ml-1" />
               </Link>
             </div>
