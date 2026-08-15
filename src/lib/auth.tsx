@@ -23,6 +23,33 @@ type Session = {
   has_custom_metrics?: boolean;
 };
 
+export type PlatformModule = {
+  key: string;
+  metadata: {
+    name: string;
+    description?: string;
+    version: string;
+    icon?: string;
+  };
+  capability?: string;
+  onboardingSteps: Array<{
+    key: string;
+    scope: "platform" | "capability";
+    title: string;
+    capabilityKey?: string;
+    order: number;
+  }>;
+  ui: {
+    entry: string;
+    navigation: Array<{
+      key: string;
+      label: string;
+      icon?: string;
+      order: number;
+    }>;
+  } | null;
+};
+
 type SignUpInput = {
   name: string;
   companyName: string;

@@ -31,6 +31,23 @@ const PLAN_LABELS: Record<string, string> = {
   scale: "Escala",
 };
 
+export interface BillingPlan {
+  key: string;
+  name: string;
+  priceCents: number;
+  contacts: number;
+}
+
+const BILLING_CATALOG: BillingPlan[] = [
+  { key: "essential", name: "Essencial", priceCents: 4_990, contacts: 360 },
+  { key: "professional", name: "Profissional", priceCents: 19_700, contacts: 1_500 },
+  { key: "scale", name: "Escala", priceCents: 29_700, contacts: 3_000 },
+];
+
+export async function getBillingCatalog(): Promise<BillingPlan[]> {
+  return BILLING_CATALOG.map((plan) => ({ ...plan }));
+}
+
 export function planLabel(key: string | null): string {
   return key ? (PLAN_LABELS[key] ?? key) : "—";
 }

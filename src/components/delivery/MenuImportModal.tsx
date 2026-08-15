@@ -1,13 +1,29 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Sparkles, ImagePlus, FileImage, CheckCircle2, Loader2, AlertCircle, X } from "lucide-react";
+import {
+  Sparkles,
+  ImagePlus,
+  FileImage,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  X,
+} from "lucide-react";
 import { useMenuImportAI } from "@/lib/MenuImportAIProvider";
 import { Switch } from "@/components/ui/switch";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const ALLOWED_EXT = ".jpg,.jpeg,.png,.webp";
+const MAX_FILES = 6;
+const MAX_FILE_BYTES = 12 * 1024 * 1024;
 
 type ProcessingStage = "idle" | "uploading" | "analyzing" | "preparing";
 
@@ -28,6 +44,7 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [analysisInfo, setAnalysisInfo] = useState<any>(null);
   const [importing, setImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
 
@@ -36,6 +53,7 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
     setStage("idle");
     setError(null);
     setCategories([]);
+    setAnalysisInfo(null);
     setImporting(false);
     setSelectedFiles([]);
     setImportedCount(0);
@@ -48,21 +66,19 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
 
   const onFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const incoming = Array.from(e.target.files || []);
-    const valid = incoming.filter((f) => ALLOWED_TYPES.includes(f.type));
-    const invalid = incoming.length - valid.length;
+    const validType = incoming.filter((file) => ALLOWED_TYPES.includes(file.type));
+    const validSize = validType.filter((file) => file.size <= MAX_FILE_BYTES);
+    const messages: string[] = [];
+    if (validType.length !== incoming.length) messages.push("Use somente JPG, PNG ou WEBP.");
+    if (validSize.length !== validType.length) messages.push("Cada foto pode ter até 12 MB.");
 
-    if (invalid > 0) {
-      setError(`${invalid} arquivo(s) ignorado(s). Apenas JPG, PNG e WEBP são aceitos.`);
-    } else {
-      setError(null);
-    }
-
-    // Deduplicate by name+size
-    setSelectedFiles((prev) => {
-      const existing = new Set(prev.map((f) => f.name + f.size));
-      const newFiles = valid.filter((f) => !existing.has(f.name + f.size));
-      return [...prev, ...newFiles];
-    });
+    const existing = new Set(selectedFiles.map((file) => `${file.name}:${file.size}`));
+    const unique = validSize.filter((file) => !existing.has(`${file.name}:${file.size}`));
+    const combined = [...selectedFiles, ...unique];
+    if (combined.length > MAX_FILES)
+      messages.push(`Envie no máximo ${MAX_FILES} fotos por análise.`);
+    setSelectedFiles(combined.slice(0, MAX_FILES));
+    setError(messages.length ? messages.join(" ") : null);
 
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -86,6 +102,7 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
       setStage("preparing");
       await new Promise((r) => setTimeout(r, 200));
       setCategories(result.categories || []);
+      setAnalysisInfo(result.analysis || null);
       setStep("review");
     } catch (err: any) {
       setError(
@@ -129,6 +146,15 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
 
   const totalProducts = categories.reduce((acc, cat) => acc + (cat.products?.length || 0), 0);
   const totalCategories = categories.length;
+  const missingPrices = categories.reduce(
+    (total, category) =>
+      total +
+      (category.products || []).filter(
+        (product: any) =>
+          !product.ignore && (product.price === null || !Number.isFinite(Number(product.price))),
+      ).length,
+    0,
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -160,8 +186,8 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
           {step === "select" && (
             <div className="space-y-5">
               <p className="text-sm text-muted-foreground">
-                Envie uma ou mais fotos do seu cardápio e a IA identifica os produtos
-                automaticamente.
+                Envie até {MAX_FILES} fotos. O Arles amplia topo, colunas, laterais e rodapé, cruza
+                as leituras e organiza produtos, preços e variações automaticamente.
               </p>
 
               <input
@@ -181,7 +207,9 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
                 <ImagePlus className="size-10 text-muted-foreground group-hover:text-primary transition-colors" />
                 <div className="text-center">
                   <p className="text-sm font-medium">Selecionar fotos do cardápio</p>
-                  <p className="text-xs text-muted-foreground mt-1">JPG, JPEG, PNG ou WEBP</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    JPG, JPEG, PNG ou WEBP · até 12 MB por foto
+                  </p>
                 </div>
               </button>
 
@@ -233,7 +261,7 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
                 <p className="font-semibold text-base">{stageLable(stage)}</p>
                 <p className="text-sm text-muted-foreground">
                   {stage === "analyzing"
-                    ? `Analisando ${selectedFiles.length} foto(s) do cardápio… Isso pode levar alguns segundos.`
+                    ? `Ampliando e cruzando as regiões de ${selectedFiles.length} foto(s)… Isso pode levar até alguns minutos.`
                     : "Aguarde um momento."}
                 </p>
               </div>
@@ -251,6 +279,21 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Revise os dados abaixo. Edite, exclua ou desative antes de importar.
                 </p>
+                {analysisInfo && (
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Leitura reforçada: {analysisInfo.regionsAnalyzed} região(ões) cruzada(s) em{" "}
+                    {analysisInfo.passesCompleted} etapa(s).
+                  </p>
+                )}
+                {missingPrices > 0 && (
+                  <div className="mt-2 p-2.5 rounded-md bg-amber-50 text-amber-800 text-xs flex items-start gap-2">
+                    <AlertCircle className="size-4 mt-0.5 shrink-0" />
+                    <span>
+                      {missingPrices} item(ns) ficaram sem preço legível. Informe o preço ou
+                      desligue “Importar” nesses itens para concluir.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Scrollable list only */}
@@ -303,7 +346,9 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
                                       cIdx,
                                       pIdx,
                                       "price",
-                                      e.target.value === "" ? null : parseFloat(e.target.value) || 0
+                                      e.target.value === ""
+                                        ? null
+                                        : parseFloat(e.target.value) || 0,
                                     )
                                   }
                                   type="number"
@@ -383,14 +428,13 @@ export function MenuImportModal({ onImportComplete }: { onImportComplete: () => 
 
               {/* Fixed footer */}
               <div className="flex-shrink-0 flex justify-between gap-2 mt-3 pt-3 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep("select")}
-                  disabled={importing}
-                >
+                <Button variant="outline" onClick={() => setStep("select")} disabled={importing}>
                   Voltar
                 </Button>
-                <Button onClick={handleConfirm} disabled={importing}>
+                <Button
+                  onClick={handleConfirm}
+                  disabled={importing || totalProducts === 0 || missingPrices > 0}
+                >
                   {importing && <Loader2 className="size-4 mr-2 animate-spin" />}
                   Importar produtos
                 </Button>
