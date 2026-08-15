@@ -12,23 +12,19 @@ import { ptBR } from "date-fns/locale";
 // ── Plan definitions ───────────────────────────────────────────────────────────
 
 type PlanKey = "essential" | "professional" | "scale";
-type BillingCycle = "monthly" | "annual";
 
 interface Plan {
   key:       PlanKey;
   name:      string;
   monthlyPrice: string;
-  annualMonthlyPrice: string;
-  annualTotal: string;
-  annualSavings: string;
   contacts:  number;
   badge?:    string;
 }
 
 const PLANS: Plan[] = [
-  { key: "essential", name: "Essencial", monthlyPrice: "49,90", annualMonthlyPrice: "41,58", annualTotal: "499,00", annualSavings: "99,80", contacts: 360 },
-  { key: "professional", name: "Profissional", monthlyPrice: "197,00", annualMonthlyPrice: "164,17", annualTotal: "1.970,00", annualSavings: "394,00", contacts: 1500, badge: "Mais escolhido" },
-  { key: "scale", name: "Escala", monthlyPrice: "297,00", annualMonthlyPrice: "247,50", annualTotal: "2.970,00", annualSavings: "594,00", contacts: 3000 },
+  { key: "essential", name: "Essencial", monthlyPrice: "49,90", contacts: 360 },
+  { key: "professional", name: "Profissional", monthlyPrice: "197,00", contacts: 1500, badge: "Mais escolhido" },
+  { key: "scale", name: "Escala", monthlyPrice: "297,00", contacts: 3000 },
 ];
 
 const FEATURES = [
@@ -43,12 +39,12 @@ const FEATURES = [
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 
-async function startCheckout(planKey: PlanKey, billingCycle: BillingCycle): Promise<void> {
+async function startCheckout(planKey: PlanKey): Promise<void> {
   const res = await fetch("/.netlify/functions/create-checkout-session", {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan_key: planKey, billing_cycle: billingCycle }),
+    body: JSON.stringify({ plan_key: planKey }),
   });
 
   const text = await res.text();
@@ -130,9 +126,8 @@ function ContactUsageBar({ used, limit }: { used: number; limit: number }) {
 }
 
 function PlanCard({
-  plan, billingCycle, loading, onSubscribe,
-}: { plan: Plan; billingCycle: BillingCycle; loading: boolean; onSubscribe: (k: PlanKey, cycle: BillingCycle) => void }) {
-  const annual = billingCycle === "annual";
+  plan, loading, onSubscribe,
+}: { plan: Plan; loading: boolean; onSubscribe: (k: PlanKey) => void }) {
   return (
     <div className={`relative rounded-2xl border-2 p-5 bg-card flex flex-col gap-4 ${
       plan.badge ? "border-primary shadow-md" : "border-border"
@@ -152,20 +147,14 @@ function PlanCard({
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-2xl font-bold">R$ {annual ? plan.annualMonthlyPrice : plan.monthlyPrice}</p>
+          <p className="text-2xl font-bold">R$ {plan.monthlyPrice}</p>
           <p className="text-xs text-muted-foreground">/mês</p>
         </div>
       </div>
 
-      {annual && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-center text-xs font-medium text-emerald-700">
-          cobrado R$ {plan.annualTotal}/ano · você economiza R$ {plan.annualSavings}
-        </p>
-      )}
-
       <Button
         id={`billing-subscribe-${plan.key}`}
-        onClick={() => onSubscribe(plan.key, billingCycle)}
+        onClick={() => onSubscribe(plan.key)}
         disabled={loading}
         className={`w-full ${plan.badge ? "" : "variant-outline"}`}
         variant={plan.badge ? "default" : "outline"}
@@ -173,7 +162,7 @@ function PlanCard({
         {loading
           ? <Loader2 className="size-4 animate-spin mr-2" />
           : <CreditCard className="size-4 mr-2" />}
-        Assinar {annual ? "anual" : "mensal"}
+        Assinar {plan.name}
       </Button>
     </div>
   );
@@ -231,12 +220,12 @@ export function Billing() {
     };
   }, [user]);
 
-  const handleCheckout = async (planKey: PlanKey, billingCycle: BillingCycle) => {
+  const handleCheckout = async (planKey: PlanKey) => {
     if (!user) return;
     setCheckoutLoading(planKey);
     setError(null);
     try {
-      await startCheckout(planKey, billingCycle);
+      await startCheckout(planKey);
     } catch (e: any) {
       if (e.message === "already_subscribed") {
         setError("Você já possui uma assinatura ativa. Use \"Gerenciar assinatura\" abaixo.");
@@ -423,7 +412,7 @@ export function Billing() {
           <div>
             <h3 className="font-semibold text-base mb-1">Conheça nossos planos</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Assine quando estiver pronto e ative seu plano pelo Stripe.
+              Escolha seu plano mensal e ative pelo checkout seguro do Stripe.
             </p>
             <PlanGrid
               onSubscribe={handleCheckout}
@@ -500,31 +489,13 @@ export function Billing() {
 
 function PlanGrid({
   onSubscribe, loadingPlan,
-}: { onSubscribe: (k: PlanKey, cycle: BillingCycle) => void; loadingPlan: PlanKey | null }) {
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("annual");
+}: { onSubscribe: (k: PlanKey) => void; loadingPlan: PlanKey | null }) {
   return (
     <div className="space-y-4">
-      <div className="mx-auto flex w-fit rounded-xl border bg-muted p-1">
-        <button
-          type="button"
-          onClick={() => setBillingCycle("annual")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${billingCycle === "annual" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
-        >
-          Anual <span className="ml-1 text-xs text-emerald-600">2 meses grátis</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setBillingCycle("monthly")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${billingCycle === "monthly" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
-        >
-          Mensal
-        </button>
-      </div>
       {PLANS.map((plan) => (
         <PlanCard
           key={plan.key}
           plan={plan}
-          billingCycle={billingCycle}
           loading={loadingPlan === plan.key}
           onSubscribe={onSubscribe}
         />

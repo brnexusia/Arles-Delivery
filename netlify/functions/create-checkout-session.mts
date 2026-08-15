@@ -7,7 +7,6 @@ import {
 } from "../lib/arles-server.mts";
 
 type PlanKey = "essential" | "professional" | "scale";
-type BillingCycle = "monthly" | "annual";
 
 const PLAN_LIMITS: Record<PlanKey, number> = {
   essential: 360,
@@ -15,18 +14,13 @@ const PLAN_LIMITS: Record<PlanKey, number> = {
   scale: 3000,
 };
 
-function priceFor(plan: PlanKey, cycle: BillingCycle) {
-  const monthly = {
+function priceFor(plan: PlanKey) {
+  const prices = {
     essential: process.env.STRIPE_PRICE_ESSENTIAL,
     professional: process.env.STRIPE_PRICE_PROFESSIONAL,
     scale: process.env.STRIPE_PRICE_SCALE,
   };
-  const annual = {
-    essential: process.env.STRIPE_PRICE_ESSENTIAL_ANNUAL,
-    professional: process.env.STRIPE_PRICE_PROFESSIONAL_ANNUAL,
-    scale: process.env.STRIPE_PRICE_SCALE_ANNUAL,
-  };
-  return (cycle === "annual" ? annual : monthly)[plan];
+  return prices[plan];
 }
 
 export default async function handler(req: Request, context: Context) {
@@ -48,17 +42,13 @@ export default async function handler(req: Request, context: Context) {
   }
 
   const planKey = String(body.plan_key || "").toLowerCase() as PlanKey;
-  const billingCycle = String(body.billing_cycle || "annual").toLowerCase() as BillingCycle;
   if (!(planKey in PLAN_LIMITS)) {
     return json({ error: "Invalid plan_key" }, 400);
   }
-  if (billingCycle !== "monthly" && billingCycle !== "annual") {
-    return json({ error: "Invalid billing_cycle" }, 400);
-  }
 
-  const priceId = priceFor(planKey, billingCycle);
+  const priceId = priceFor(planKey);
   if (!priceId) {
-    return json({ error: `Stripe price for ${planKey} (${billingCycle}) is not configured.` }, 500);
+    return json({ error: `Stripe monthly price for ${planKey} is not configured.` }, 500);
   }
 
   const companyId = auth.user.companyId;
@@ -124,13 +114,13 @@ export default async function handler(req: Request, context: Context) {
       metadata: {
         company_id: companyId,
         plan_key: planKey,
-        billing_cycle: billingCycle,
+        billing_cycle: "monthly",
       },
       subscription_data: {
         metadata: {
           company_id: companyId,
           plan_key: planKey,
-          billing_cycle: billingCycle,
+          billing_cycle: "monthly",
         },
       },
       success_url: `${appUrl}/?tab=billing&checkout=success&session_id={CHECKOUT_SESSION_ID}`,
