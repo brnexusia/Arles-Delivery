@@ -15,12 +15,11 @@ const PLAN_LIMITS: Record<PlanKey, number> = {
 };
 
 function priceFor(plan: PlanKey) {
-  const prices = {
+  return {
     essential: process.env.STRIPE_PRICE_ESSENTIAL,
     professional: process.env.STRIPE_PRICE_PROFESSIONAL,
     scale: process.env.STRIPE_PRICE_SCALE,
-  };
-  return prices[plan];
+  }[plan];
 }
 
 export default async function handler(req: Request, context: Context) {
@@ -48,7 +47,7 @@ export default async function handler(req: Request, context: Context) {
 
   const priceId = priceFor(planKey);
   if (!priceId) {
-    return json({ error: `Stripe monthly price for ${planKey} is not configured.` }, 500);
+    return json({ error: `Stripe price for ${planKey} is not configured.` }, 500);
   }
 
   const companyId = auth.user.companyId;
@@ -114,13 +113,11 @@ export default async function handler(req: Request, context: Context) {
       metadata: {
         company_id: companyId,
         plan_key: planKey,
-        billing_cycle: "monthly",
       },
       subscription_data: {
         metadata: {
           company_id: companyId,
           plan_key: planKey,
-          billing_cycle: "monthly",
         },
       },
       success_url: `${appUrl}/?tab=billing&checkout=success&session_id={CHECKOUT_SESSION_ID}`,

@@ -16,15 +16,15 @@ type PlanKey = "essential" | "professional" | "scale";
 interface Plan {
   key:       PlanKey;
   name:      string;
-  monthlyPrice: string;
+  price:     string;
   contacts:  number;
   badge?:    string;
 }
 
 const PLANS: Plan[] = [
-  { key: "essential", name: "Essencial", monthlyPrice: "49,90", contacts: 360 },
-  { key: "professional", name: "Profissional", monthlyPrice: "197,00", contacts: 1500, badge: "Mais escolhido" },
-  { key: "scale", name: "Escala", monthlyPrice: "297,00", contacts: 3000 },
+  { key: "essential",    name: "Essencial",    price: "49,90",  contacts: 360 },
+  { key: "professional", name: "Profissional",  price: "197,00", contacts: 1500, badge: "Mais escolhido" },
+  { key: "scale",        name: "Escala",        price: "297,00", contacts: 3000 },
 ];
 
 const FEATURES = [
@@ -147,7 +147,7 @@ function PlanCard({
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-2xl font-bold">R$ {plan.monthlyPrice}</p>
+          <p className="text-2xl font-bold">R$ {plan.price}</p>
           <p className="text-xs text-muted-foreground">/mês</p>
         </div>
       </div>
@@ -412,7 +412,7 @@ export function Billing() {
           <div>
             <h3 className="font-semibold text-base mb-1">Conheça nossos planos</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Escolha seu plano mensal e ative pelo checkout seguro do Stripe.
+              Assine quando estiver pronto e ative seu plano pelo Stripe.
             </p>
             <PlanGrid
               onSubscribe={handleCheckout}
@@ -491,7 +491,7 @@ function PlanGrid({
   onSubscribe, loadingPlan,
 }: { onSubscribe: (k: PlanKey) => void; loadingPlan: PlanKey | null }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {PLANS.map((plan) => (
         <PlanCard
           key={plan.key}
