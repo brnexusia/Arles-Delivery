@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useLocation,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -11,7 +12,10 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { StaticLanding } from "@/components/public/StaticLanding";
+import landingHtml from "../../landing/index.html?raw";
+import landingCss from "../../landing/styles.css?raw";
 
 function NotFoundComponent() {
   return (
@@ -128,6 +132,25 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function PublicRootGate() {
+  const { user, ready } = useAuth();
+  const location = useLocation();
+
+  if (location.pathname === "/") {
+    if (!ready) {
+      return (
+        <main className="grid min-h-screen place-items-center bg-background">
+          <p className="text-sm text-muted-foreground">Carregando…</p>
+        </main>
+      );
+    }
+
+    if (!user) return <StaticLanding html={landingHtml} css={landingCss} />;
+  }
+
+  return <Outlet />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -142,8 +165,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
+        <PublicRootGate />
       </AuthProvider>
     </QueryClientProvider>
   );
