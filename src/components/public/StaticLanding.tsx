@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 
+// Public marketing page renderer used at the product root for signed-out visitors.
 type StaticLandingProps = {
   html: string;
   css: string;
