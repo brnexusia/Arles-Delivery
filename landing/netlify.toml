@@ -1,2 +1,4 @@
 [build]
+  base = "."
+  command = "echo 'Publishing Arles Delivery LP only'"
   publish = "."
