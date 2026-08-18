@@ -1,3 +1,4 @@
 [build]
+  base = "landing"
   command = "echo 'Publishing Arles Delivery landing page'"
-  publish = "landing"
+  publish = "."
