@@ -17,7 +17,6 @@ import {
   Save,
   Search,
   Settings,
-  Smartphone,
   Wrench,
 } from "lucide-react";
 import { useAuth, useSessionGuard } from "@/lib/auth";
@@ -93,7 +92,8 @@ type ImportPreview = {
 const STATUS: Record<string, { label: string; next?: string }> = {
   triage: { label: "Triagem", next: "quoted" },
   quoted: { label: "Orçamento enviado", next: "awaiting_approval" },
-  awaiting_approval: { label: "Aguardando aprovação", next: "received" },
+  awaiting_approval: { label: "Aguardando aprovação", next: "confirmed" },
+  confirmed: { label: "Orçamento confirmado", next: "received" },
   received: { label: "Recebido", next: "diagnosis" },
   diagnosis: { label: "Em diagnóstico", next: "approved" },
   approved: { label: "Aprovado", next: "repairing" },
