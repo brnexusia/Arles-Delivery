@@ -50,6 +50,12 @@ function resolveEnginePath(path: string): EngineRoute | null {
       primary: "/internal/verticals/delivery/menu/assets",
       fallback: "/internal/panel/menu-assets",
     },
+    "assist/overview": { primary: "/internal/verticals/assist/overview" },
+    "assist/services": { primary: "/internal/verticals/assist/services" },
+    "assist/orders": { primary: "/internal/verticals/assist/orders" },
+    "assist/settings": { primary: "/internal/verticals/assist/settings" },
+    "assist/import/preview": { primary: "/internal/verticals/assist/import/preview" },
+    "assist/import/commit": { primary: "/internal/verticals/assist/import/commit" },
     "whatsapp/status": {
       primary: "/internal/platform/channels/whatsapp",
       fallback: "/internal/panel/whatsapp/status",
@@ -110,6 +116,14 @@ function resolveEnginePath(path: string): EngineRoute | null {
         fallback: "/internal/panel/menu/analyze/$1",
       },
     ],
+    [
+      /^assist\/services\/([0-9a-f-]{36})$/i,
+      { primary: "/internal/verticals/assist/services/$1" },
+    ],
+    [
+      /^assist\/orders\/([0-9a-f-]{36})$/i,
+      { primary: "/internal/verticals/assist/orders/$1" },
+    ],
   ] as const;
 
   for (const [regex, target] of patterns) {
@@ -153,8 +167,6 @@ export default async function handler(req: Request, context: Context) {
         ? `?company_id=${encodeURIComponent(companyId)}`
         : "";
 
-    // O proxy já validou a sessão. Encaminhar o mesmo token permite que as
-    // rotas modulares do Core resolvam o tenant sem depender do modo legado.
     const init: RequestInit = {
       method: req.method,
       headers: { "X-Arles-Session": session.token },
@@ -165,9 +177,6 @@ export default async function handler(req: Request, context: Context) {
 
     let forwarded = await engineFetch(`${engineRoute.primary}${query}`, init);
 
-    // Durante a transição do Core antigo para o motor modular, alguns ambientes
-    // ainda expõem apenas /internal/panel/*. O fallback evita quebrar o painel
-    // enquanto o Core é atualizado e só é usado quando a rota nova não existe.
     if (forwarded.response.status === 404 && engineRoute.fallback) {
       forwarded = await engineFetch(`${engineRoute.fallback}${query}`, init);
     }
