@@ -14,6 +14,7 @@ export function WhatsApp() {
   const [phone, setPhone] = useState<string | null>(null);
   const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isAssist = typeof window !== "undefined" && window.location.pathname.startsWith("/assist");
 
   const stopTimers = () => {
     if (statusPollRef.current) clearInterval(statusPollRef.current);
@@ -115,7 +116,11 @@ export function WhatsApp() {
     <div className="space-y-6 animate-in fade-in">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">WhatsApp</h2>
-        <p className="text-muted-foreground">Conecte o número que receberá e responderá os pedidos automaticamente.</p>
+        <p className="text-muted-foreground">
+          {isAssist
+            ? "Conecte o número que receberá e responderá os atendimentos da assistência automaticamente."
+            : "Conecte o número que receberá e responderá os pedidos automaticamente."}
+        </p>
       </div>
 
       <div className="max-w-md">
@@ -126,7 +131,11 @@ export function WhatsApp() {
             {status === "disconnected" && <>
               <div className="size-20 rounded-full bg-muted flex items-center justify-center mb-6"><QrCode className="size-10 text-muted-foreground"/></div>
               <h3 className="text-xl font-semibold mb-2">WhatsApp desconectado</h3>
-              <p className="text-sm text-muted-foreground mb-8">Leia o QR Code com o WhatsApp da loja para ativar o atendimento automático.</p>
+              <p className="text-sm text-muted-foreground mb-8">
+                {isAssist
+                  ? "Leia o QR Code com o WhatsApp da assistência para ativar o atendimento automático."
+                  : "Leia o QR Code com o WhatsApp da loja para ativar o atendimento automático."}
+              </p>
               <Button onClick={() => void requestQr()} size="lg" className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white">Conectar WhatsApp</Button>
             </>}
 
@@ -161,7 +170,11 @@ export function WhatsApp() {
               <div className="mt-4 mb-6 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 w-full">
                 <Zap className="size-4 text-emerald-600 shrink-0"/><p className="text-sm font-semibold text-emerald-800 text-left">ATENDIMENTO AUTOMÁTICO ATIVO</p>
               </div>
-              <p className="text-xs text-muted-foreground mb-6">A IA está ativa e respondendo seus clientes automaticamente.</p>
+              <p className="text-xs text-muted-foreground mb-6">
+                {isAssist
+                  ? "A IA está ativa para triagem, orçamento e encaminhamento dos clientes da assistência."
+                  : "A IA está ativa e respondendo seus clientes automaticamente."}
+              </p>
               <Button variant="outline" className="w-full text-destructive hover:bg-destructive/10" onClick={() => void disconnect()}><WifiOff className="size-4 mr-2"/>Desconectar</Button>
             </>}
           </CardContent>
