@@ -13,6 +13,8 @@ export function WhatsApp() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [instanceToken, setInstanceToken] = useState("");
+  const [instanceName, setInstanceName] = useState("");
+  const [tokenSavedInfo, setTokenSavedInfo] = useState("");
   const [tokenSaving, setTokenSaving] = useState(false);
   const [tokenError, setTokenError] = useState("");
   const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -118,8 +120,12 @@ export function WhatsApp() {
     if (!instanceToken.trim()) return;
     setTokenSaving(true);
     setTokenError("");
+    setTokenSavedInfo("");
     try {
-      await engineRequest("whatsapp/token", { method: "POST", body: { token: instanceToken.trim() } });
+      const result = await engineRequest<{ webhookConfigured: boolean; warning?: string }>("whatsapp/token", {
+        method: "POST", body: { token: instanceToken.trim(), instanceName: instanceName.trim() }
+      });
+      setTokenSavedInfo(result.webhookConfigured ? "Instância salva e webhook configurado." : (result.warning || "Instância salva."));
       setInstanceToken("");
       await fetchStatus();
     } catch (err: any) {
@@ -190,6 +196,15 @@ export function WhatsApp() {
           nunca exibido novamente. A chave global não deve ser informada aqui.
         </p>
         <input
+          type="text"
+          autoComplete="off"
+          value={instanceName}
+          onChange={event => setInstanceName(event.target.value)}
+          className="w-full rounded-md border bg-background p-2 text-sm"
+          placeholder="Nome da instância (opcional)"
+          aria-label="Nome da instância Evolution Go"
+        />
+        <input
           type="password"
           autoComplete="off"
           value={instanceToken}
@@ -203,6 +218,7 @@ export function WhatsApp() {
           {tokenSaving ? "Salvando..." : "Salvar token"}
         </Button>
         {tokenError && <p className="text-xs text-destructive">{tokenError}</p>}
+        {tokenSavedInfo && <p className="text-xs text-muted-foreground">{tokenSavedInfo}</p>}
       </div>
     </div>
   );
