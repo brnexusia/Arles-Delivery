@@ -12,6 +12,9 @@ export function WhatsApp() {
   const [status, setStatus] = useState<WaStatus>("loading");
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
+  const [instanceToken, setInstanceToken] = useState("");
+  const [tokenSaving, setTokenSaving] = useState(false);
+  const [tokenError, setTokenError] = useState("");
   const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -111,6 +114,19 @@ export function WhatsApp() {
     }
   };
 
+  const saveToken = async () => {
+    if (!instanceToken.trim()) return;
+    setTokenSaving(true);
+    setTokenError("");
+    try {
+      await engineRequest("whatsapp/token", { method: "POST", body: { token: instanceToken.trim() } });
+      setInstanceToken("");
+      await fetchStatus();
+    } catch (err: any) {
+      setTokenError(err?.message || "Não foi possível salvar o token.");
+    } finally { setTokenSaving(false); }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in">
       <div>
@@ -166,6 +182,27 @@ export function WhatsApp() {
             </>}
           </CardContent>
         </Card>
+      </div>
+      <div className="max-w-md border rounded-xl p-4 space-y-3">
+        <h3 className="font-semibold">Já usa uma instância na Evolution Go?</h3>
+        <p className="text-xs text-muted-foreground">
+          Informe o token individual da instância existente. Ele é salvo somente no servidor,
+          nunca exibido novamente. A chave global não deve ser informada aqui.
+        </p>
+        <input
+          type="password"
+          autoComplete="off"
+          value={instanceToken}
+          onChange={event => setInstanceToken(event.target.value)}
+          className="w-full rounded-md border bg-background p-2 text-sm"
+          placeholder="Token individual da Evolution Go"
+          aria-label="Token da instância Evolution Go"
+        />
+        <Button variant="outline" disabled={tokenSaving || instanceToken.trim().length < 20}
+          onClick={() => void saveToken()}>
+          {tokenSaving ? "Salvando..." : "Salvar token"}
+        </Button>
+        {tokenError && <p className="text-xs text-destructive">{tokenError}</p>}
       </div>
     </div>
   );
