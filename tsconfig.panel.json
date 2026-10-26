@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/components/**/*.ts",
+    "src/components/**/*.tsx",
+    "src/routes/**/*.ts",
+    "src/routes/**/*.tsx",
+    "src/lib/**/*.ts",
+    "src/lib/**/*.tsx",
+    "src/hooks/**/*.ts",
+    "src/hooks/**/*.tsx",
+    "src/main.ts",
+    "src/main.tsx",
+    "src/router.tsx"
+  ],
+  "exclude": [
+    "src/core/**",
+    "src/auth/**",
+    "src/billing/**",
+    "src/verticals/**",
+    "src/infrastructure/**",
+    "src/platform/**",
+    "src/media/**",
+    "src/scripts/**"
+  ]
+}
