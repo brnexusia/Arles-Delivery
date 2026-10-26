@@ -22,5 +22,11 @@
     "src/platform/**",
     "src/media/**",
     "src/scripts/**"
-  ]
+  ],
+  "compilerOptions": {
+    "types": [
+      "vite/client",
+      "node"
+    ]
+  }
 }
