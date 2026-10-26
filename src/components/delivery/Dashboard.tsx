@@ -34,13 +34,13 @@ export function Dashboard({ goToTab }: { goToTab?: (tab: any, subtab?: any) => v
   const todaysOrders = orders.filter(o => o.created_at.startsWith(today)).length;
   const inProgress = orders.filter(o => ["Novos", "Em preparo", "Pronto", "Saiu para entrega"].includes(o.status)).length;
   const finished = orders.filter(o => o.status === "Finalizados").length;
-  const recentOrders = orders.slice(0, 10);
+  const recentOrders = orders.slice(0, 5);
 
   return (
     <div className="space-y-8 animate-in fade-in pb-12">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">Resumo das suas operações de hoje.</p>
+        <h2 className="text-2xl font-bold tracking-tight">Resumo</h2>
+        <p className="text-muted-foreground">Acompanhe os indicadores aqui. Todos os pedidos e comandos operacionais ficam no WhatsApp.</p>
       </div>
 
       {waStatus === "disconnected" && (
