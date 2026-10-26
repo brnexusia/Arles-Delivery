@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "../dashboard/ThemeToggle";
 import { Save, Loader2, ImagePlus, MessageCircle, BrainCircuit, Settings as SettingsIcon } from "lucide-react";
 import { WhatsApp } from "./WhatsApp";
+import { WhatsAppOperations } from "./WhatsAppOperations";
 import { StoreInfo } from "./StoreInfo";
 import { engineData, engineRequest } from "@/lib/arles-engine";
 import { useAuth } from "@/lib/auth";
@@ -102,7 +103,7 @@ export function DeliverySettings({ initialTab = "geral" }: { initialTab?: "geral
     <div className="space-y-6 animate-in fade-in pb-12">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Ajustes do Sistema</h2>
-        <p className="text-muted-foreground">Gerencie as configurações gerais, WhatsApp e base da IA.</p>
+        <p className="text-muted-foreground">O WhatsApp é sua central de operação. Aqui ficam apenas os ajustes essenciais.</p>
       </div>
 
       <div className="grid grid-cols-3 gap-1 pb-4 border-b">
@@ -186,7 +187,7 @@ export function DeliverySettings({ initialTab = "geral" }: { initialTab?: "geral
           )
         )}
 
-        {activeTab === "whatsapp" && <div className="animate-in fade-in"><WhatsApp /></div>}
+        {activeTab === "whatsapp" && <div className="animate-in fade-in"><WhatsApp /><WhatsAppOperations /></div>}
         {activeTab === "info" && <div className="animate-in fade-in"><StoreInfo /></div>}
       </div>
     </div>

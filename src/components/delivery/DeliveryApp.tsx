@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Home, Package, Utensils, Settings, LogOut, Users, CreditCard } from "lucide-react";
+import { Home, Utensils, Settings, LogOut, CreditCard } from "lucide-react";
 import { Dashboard } from "./Dashboard";
 import { Orders } from "./Orders";
 import { Menu } from "./Menu";
@@ -77,10 +77,8 @@ export function DeliveryApp() {
   };
 
   const NAV_ITEMS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "dashboard", label: "Dashboard",  icon: <Home className="size-4" /> },
-    { id: "orders",    label: "Pedidos",    icon: <Package className="size-4" /> },
+    { id: "dashboard", label: "Resumo",  icon: <Home className="size-4" /> },
     { id: "menu",      label: "Cardápio",   icon: <Utensils className="size-4" /> },
-    { id: "customers", label: "Clientes",   icon: <Users className="size-4" /> },
     { id: "settings",  label: "Ajustes",    icon: <Settings className="size-4" /> },
     { id: "billing",   label: "Assinatura", icon: <CreditCard className="size-4" /> },
   ];
