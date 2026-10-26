@@ -1,7 +1,5 @@
 name: Delivery Panel CI
 on:
-  push:
-    branches: [feat/delivery-whatsapp-first-evolution-go]
   pull_request:
     branches: [main]
 permissions:
@@ -16,6 +14,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm run build
